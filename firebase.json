@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "server.cjs",
+      "server.cjs.map",
+      "**/.*"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

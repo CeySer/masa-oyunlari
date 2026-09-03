@@ -32,7 +32,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   leaderboard: [],
   connectSocket: () => {
     if (!get().socket) {
-      const socket = io({
+      // VITE_SERVER_URL points at the game server when frontend and backend
+      // are hosted separately (e.g. frontend on Firebase Hosting, backend on
+      // Render/Railway/Fly). Leave unset for same-origin (monolithic) deploys.
+      const serverUrl = import.meta.env.VITE_SERVER_URL || undefined;
+      const socket = io(serverUrl, {
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 1000,

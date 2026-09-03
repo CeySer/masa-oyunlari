@@ -25,10 +25,29 @@ npm run start
 
 ## Deployment
 
-Das Backend (Express + Socket.io) und Frontend laufen im selben Node-Prozess und
-brauchen daher ein Hosting mit persistenten Node-Prozessen und WebSocket-Support
-(z.B. Render, Railway, Fly.io) – reines statisches Hosting (z.B. Firebase Hosting
-allein) reicht nicht aus, solange Socket.io für Echtzeit-Updates genutzt wird.
+**Option A – monolithisch (einfachste, Standard):** Ein Node-Prozess bedient
+Frontend und Backend zusammen. Braucht Hosting mit persistentem Node-Prozess
+und WebSocket-Support, z.B. Render, Railway oder Fly.io. `VITE_SERVER_URL`
+bleibt leer.
+
+**Option B – getrennt (Frontend auf Firebase Hosting, Backend separat):**
+
+1. Backend (Express + Socket.io) auf Render/Railway/Fly deployen wie in Option A.
+2. `.firebaserc` anpassen: eigene Firebase-Projekt-ID statt
+   `REPLACE_WITH_YOUR_FIREBASE_PROJECT_ID` eintragen.
+3. `VITE_SERVER_URL` auf die Backend-URL setzen (z.B. beim Build als Env-Var),
+   damit das Frontend den Socket zum richtigen Server öffnet.
+4. Bauen und deployen:
+   ```
+   npm run build
+   firebase deploy --only hosting
+   ```
+   (`firebase.json` ist bereits vorbereitet: `dist` als Public-Ordner, SPA-Rewrite
+   auf `index.html`, `server.cjs` wird vom Hosting ausgeschlossen.)
+
+Reines statisches Hosting (Firebase Hosting allein, ohne separaten Backend-Server)
+reicht nicht aus, solange Socket.io für Echtzeit-Updates genutzt wird – Firebase
+Hosting selbst hält keine WebSocket-Verbindungen offen.
 
 ## Hinweis
 

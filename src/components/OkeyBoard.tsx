@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type DragEvent } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 
@@ -128,16 +128,16 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   };
 
   // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, slotIdx: number) => {
+  const handleDragStart = (e: DragEvent, slotIdx: number) => {
     if (!rackSlots[slotIdx]) return;
     e.dataTransfer.setData('text/plain', slotIdx.toString());
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: DragEvent) => {
     e.preventDefault();
   };
 
-  const handleDropSlot = (e: React.DragEvent, targetSlotIdx: number) => {
+  const handleDropSlot = (e: DragEvent, targetSlotIdx: number) => {
     e.preventDefault();
     const sourceIdxStr = e.dataTransfer.getData('text/plain');
     if (sourceIdxStr !== '') {
@@ -149,7 +149,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     }
   };
 
-  const handleDropDiscardZone = (e: React.DragEvent) => {
+  const handleDropDiscardZone = (e: DragEvent) => {
     e.preventDefault();
     const sourceIdxStr = e.dataTransfer.getData('text/plain');
     if (sourceIdxStr !== '') {
