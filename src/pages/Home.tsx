@@ -2,9 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
-import { Play, Tv, Trophy, Bot, Dices, Layers, ShieldAlert, Sparkles, LogIn, LogOut, UserCircle2, MailWarning } from 'lucide-react';
+import { Play, Tv, Trophy, Bot, Dices, Layers, Sparkles, LogIn, LogOut, UserCircle2, MailWarning } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import { isFirebaseConfigured } from '../lib/firebase';
+
+const GAMES = [
+  { id: 'okey' as const, name: 'Okey', subtitle: 'Klasik Taş Oyunu', players: '2–4 Spieler', icon: Layers },
+  { id: 'tavla' as const, name: 'Tavla', subtitle: 'Zar & Strategie', players: '2 Spieler', icon: Dices },
+];
 
 export default function Home() {
   const navigate = useNavigate();
@@ -65,16 +70,29 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col justify-between p-4 sm:p-6 font-sans">
-      
+    <div
+      className="min-h-screen flex flex-col justify-between p-4 sm:p-6 font-sans"
+      style={{
+        color: 'var(--color-text)',
+        background:
+          'radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 55%), var(--color-bg)',
+      }}
+    >
       {/* Top Bar */}
       <header className="max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-amber-600 flex items-center justify-center font-black text-xl text-white shadow-lg shadow-red-950/50">
+          <div
+            className="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xl text-white"
+            style={{
+              background: 'linear-gradient(145deg, var(--color-cta-from), var(--color-cta-to))',
+              boxShadow:
+                'inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 16px -6px color-mix(in srgb, var(--color-cta-to) 70%, transparent)',
+            }}
+          >
             M
           </div>
           <div>
-            <h1 className="text-xl font-black tracking-tight text-[var(--color-text)]">Masa Oyunları</h1>
+            <h1 className="text-xl font-black tracking-tight leading-tight">Masa Oyunları</h1>
             <p className="text-xs text-[var(--color-text-muted)]">Klasik Türk Oyun Platformu</p>
           </div>
         </div>
@@ -82,10 +100,11 @@ export default function Home() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowLeaderboard(!showLeaderboard)}
-            className="flex items-center gap-2 px-4 py-2 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-accent)] font-semibold rounded-xl text-sm transition border border-[var(--color-border-strong)]"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition"
+            style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)', color: 'var(--color-accent)' }}
           >
-            <Trophy className="w-4 h-4 text-[var(--color-accent)]" />
-            <span className="hidden sm:inline">Meister-Rangliste (Elo)</span>
+            <Trophy className="w-4 h-4" />
+            <span className="hidden sm:inline">Meister-Rangliste</span>
           </button>
           <ThemeSwitcher />
           {isFirebaseConfigured && (
@@ -114,7 +133,15 @@ export default function Home() {
       </header>
 
       {user && !user.emailVerified && (
-        <div className="max-w-xl w-full mx-auto mt-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-xs" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)', color: 'var(--color-text-muted)' }}>
+        <div
+          className="max-w-xl w-full mx-auto mt-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-xs"
+          style={{
+            background: 'var(--color-surface-2)',
+            border: '1px solid var(--color-border-strong)',
+            borderLeft: '3px solid var(--color-accent)',
+            color: 'var(--color-text-muted)',
+          }}
+        >
           <span className="flex items-center gap-2">
             <MailWarning className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
             <span>E-Mail-Adresse noch nicht bestätigt.{authNotice ? ` ${authNotice}` : ''}</span>
@@ -131,9 +158,11 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="max-w-xl w-full mx-auto my-auto py-8">
-
         {showLeaderboard ? (
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-6 shadow-2xl animate-fade-in">
+          <div
+            className="rounded-3xl p-6 shadow-2xl animate-fade-in"
+            style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+          >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <Trophy className="w-6 h-6 text-[var(--color-accent)]" />
@@ -159,11 +188,17 @@ export default function Home() {
                       className="flex items-center justify-between p-3 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)]"
                     >
                       <div className="flex items-center gap-3">
-                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                          idx === 0 ? 'bg-amber-400 text-amber-950' :
-                          idx === 1 ? 'bg-slate-300 text-slate-900' :
-                          idx === 2 ? 'bg-amber-700 text-white' : 'bg-[var(--color-surface-3)] text-[var(--color-text)]'
-                        }`}>
+                        <span
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            idx === 0
+                              ? 'bg-amber-400 text-amber-950'
+                              : idx === 1
+                              ? 'bg-slate-300 text-slate-900'
+                              : idx === 2
+                              ? 'bg-amber-700 text-white'
+                              : 'bg-[var(--color-surface-3)] text-[var(--color-text)]'
+                          }`}
+                        >
                           {idx + 1}
                         </span>
                         <div>
@@ -181,100 +216,161 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6">
-            
-            {/* Player Name Input */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-[var(--color-text-muted)] mb-2">Dein Spielername</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-3.5 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition"
-                placeholder="z.B. Can Yılmaz"
-              />
-            </div>
+          <div
+            className="relative overflow-hidden rounded-3xl p-6 sm:p-8 space-y-7"
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              boxShadow: '0 24px 60px -24px rgba(0,0,0,0.55)',
+            }}
+          >
+            {/* Subtle top gloss, like the lid of a game box */}
+            <div
+              className="absolute inset-x-0 top-0 h-28 pointer-events-none"
+              style={{ background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 8%, transparent), transparent)' }}
+            />
 
-            {/* Game Selector */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-[var(--color-text-muted)] mb-2">Spiel auswählen</label>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="relative space-y-7">
+              {/* Player Name Input */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">
+                  Dein Spielername
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-3.5 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition"
+                  placeholder="z.B. Can Yılmaz"
+                />
+              </div>
+
+              {/* Game Selector */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">
+                  Spiel auswählen
+                </label>
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  {GAMES.map((game) => {
+                    const selected = gameType === game.id;
+                    const Icon = game.icon;
+                    return (
+                      <button
+                        key={game.id}
+                        type="button"
+                        onClick={() => setGameType(game.id)}
+                        className="group relative flex flex-col items-center gap-2.5 p-4 sm:p-5 rounded-2xl border-2 transition-all active:scale-[0.98]"
+                        style={{
+                          borderColor: selected ? 'var(--color-accent)' : 'var(--color-border-strong)',
+                          background: selected
+                            ? 'color-mix(in srgb, var(--color-accent) 14%, var(--color-surface-2))'
+                            : 'var(--color-surface-2)',
+                          boxShadow: selected
+                            ? '0 10px 24px -10px color-mix(in srgb, var(--color-accent) 60%, transparent)'
+                            : 'none',
+                        }}
+                      >
+                        {selected && (
+                          <span
+                            className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black"
+                            style={{ background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
+                          >
+                            ✓
+                          </span>
+                        )}
+                        <div
+                          className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors"
+                          style={{ background: selected ? 'var(--color-accent)' : 'var(--color-surface-3)' }}
+                        >
+                          <Icon
+                            className="w-6 h-6"
+                            style={{ color: selected ? 'var(--color-accent-contrast)' : 'var(--color-text-muted)' }}
+                          />
+                        </div>
+                        <div className="text-center">
+                          <div className="font-bold text-sm" style={{ color: selected ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                            {game.name}
+                          </div>
+                          <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                            {game.subtitle} · {game.players}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-3 pt-1">
                 <button
-                  type="button"
-                  onClick={() => setGameType('okey')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${
-                    gameType === 'okey'
-                      ? 'bg-red-950/40 border-red-500 text-white shadow-lg shadow-red-950/50 ring-1 ring-red-500'
-                      : 'bg-[var(--color-surface-2)] border-[var(--color-border-strong)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'
-                  }`}
+                  onClick={() => handleCreateLobby(false)}
+                  disabled={isFirebaseConfigured && !authReady}
+                  className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-[var(--color-cta-from)] to-[var(--color-cta-to)] hover:from-[var(--color-cta-hover-from)] hover:to-[var(--color-cta-hover-to)] disabled:opacity-60 text-white py-4 rounded-2xl font-bold shadow-xl transition active:scale-[0.99]"
                 >
-                  <Layers className={`w-7 h-7 ${gameType === 'okey' ? 'text-red-400' : 'text-[var(--color-text-muted)]'}`} />
-                  <span className="font-bold text-sm">Okey (Steine)</span>
+                  <Play className="w-5 h-5 fill-current" />
+                  <span>Mehrspieler-Lobby Erstellen</span>
                 </button>
+                {isFirebaseConfigured && !user && (
+                  <p className="flex items-center justify-center gap-1.5 text-[11px] text-center" style={{ color: 'var(--color-text-muted)' }}>
+                    <Sparkles className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
+                    Für echtes Online-Spiel gegen andere ist ein Konto nötig.
+                  </p>
+                )}
 
                 <button
-                  type="button"
-                  onClick={() => setGameType('tavla')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${
-                    gameType === 'tavla'
-                      ? 'bg-amber-950/40 border-amber-500 text-white shadow-lg shadow-amber-950/50 ring-1 ring-amber-500'
-                      : 'bg-[var(--color-surface-2)] border-[var(--color-border-strong)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)]'
-                  }`}
+                  onClick={() => handleCreateLobby(true)}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl font-semibold border transition active:scale-[0.99]"
+                  style={{
+                    background: 'var(--color-surface-2)',
+                    borderColor: 'var(--color-border-strong)',
+                    color: 'var(--color-accent)',
+                  }}
                 >
-                  <Dices className={`w-7 h-7 ${gameType === 'tavla' ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`} />
-                  <span className="font-bold text-sm">Tavla (Backgammon)</span>
+                  <Bot className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+                  <span>Sofort-Test mit KI-Bots (Singleplayer)</span>
                 </button>
               </div>
-            </div>
 
-            {/* Actions */}
-            <div className="space-y-3 pt-2">
-              <button
-                onClick={() => handleCreateLobby(false)}
-                disabled={isFirebaseConfigured && !authReady}
-                className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-[var(--color-cta-from)] to-[var(--color-cta-to)] hover:from-[var(--color-cta-hover-from)] hover:to-[var(--color-cta-hover-to)] disabled:opacity-60 text-white py-4 rounded-2xl font-bold shadow-xl transition active:scale-[0.99]"
-              >
-                <Play className="w-5 h-5 fill-current" />
-                <span>Mehrspieler-Lobby Erstellen</span>
-              </button>
-              {isFirebaseConfigured && !user && (
-                <p className="text-[11px] text-center -mt-1.5" style={{ color: 'var(--color-text-muted)' }}>
-                  Für echtes Online-Spiel gegen andere ist ein Konto nötig.
-                </p>
-              )}
+              <div className="relative py-1">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-[var(--color-border)]"></div>
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="px-3 bg-[var(--color-surface)] text-[var(--color-text-muted)] uppercase tracking-widest font-semibold">
+                    Oder Fernseher Modus
+                  </span>
+                </div>
+              </div>
 
               <button
-                onClick={() => handleCreateLobby(true)}
-                className="w-full flex items-center justify-center gap-2.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-accent)] py-3.5 rounded-2xl font-semibold border border-[var(--color-border-strong)] transition active:scale-[0.99]"
+                onClick={() => navigate('/tv')}
+                className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl font-semibold border transition"
+                style={{
+                  background: 'var(--color-surface-2)',
+                  borderColor: 'var(--color-border-strong)',
+                  color: 'var(--color-text)',
+                }}
               >
-                <Bot className="w-5 h-5 text-[var(--color-accent)]" />
-                <span>Sofort-Test mit KI-Bots (Singleplayer)</span>
+                <Tv className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
+                <span>Öffentliche TV / Tablett-Ansicht Starten</span>
               </button>
             </div>
-
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[var(--color-border)]"></div>
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-3 bg-[var(--color-surface)] text-[var(--color-text-muted)] uppercase tracking-widest font-semibold">Oder Fernseher Modus</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => navigate('/tv')}
-              className="w-full flex items-center justify-center gap-2 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-2)] text-[var(--color-text)] py-3.5 rounded-2xl font-semibold border border-[var(--color-border-strong)] transition"
-            >
-              <Tv className="w-5 h-5 text-[var(--color-text-muted)]" />
-              <span>Öffentliche TV / Tablett-Ansicht Starten</span>
-            </button>
           </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className="text-center text-xs text-[var(--color-text-muted)] py-4">
-        Multi-Screen Masa Oyunları • Tavla & Okey • Real-Time WebSockets
+      <footer className="max-w-4xl w-full mx-auto flex flex-wrap items-center justify-center gap-2 py-4">
+        {['Echtzeit-Mehrspieler', 'KI-Bots', 'Elo-Rangliste'].map((label) => (
+          <span
+            key={label}
+            className="text-[10px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full"
+            style={{ color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+          >
+            {label}
+          </span>
+        ))}
       </footer>
     </div>
   );
