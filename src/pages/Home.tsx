@@ -86,7 +86,7 @@ export default function Home() {
     >
       {/* Top Bar */}
       <header className="max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
-        <div className="flex items-center gap-3">
+        <button onClick={() => navigate('/')} className="flex items-center gap-3 text-left">
           <div
             className="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xl text-white"
             style={{
@@ -101,7 +101,7 @@ export default function Home() {
             <h1 className="text-xl font-black tracking-tight leading-tight">Masa Oyunları</h1>
             <p className="text-xs text-[var(--color-text-muted)]">Klasik Türk Oyun Platformu</p>
           </div>
-        </div>
+        </button>
 
         <div className="flex items-center gap-2">
           <button

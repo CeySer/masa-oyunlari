@@ -1,8 +1,13 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import AuthForm from '../components/AuthForm';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 
+// Login is the mandatory front door (see App.tsx/RequireAuth) - there is no
+// valid "back" destination before signing in, since every other route just
+// redirects back here. A "Zurück" button here used to point at that same
+// dead end, so it's been removed rather than left looking broken. `from`
+// (where RequireAuth redirected here from) is still used once login
+// succeeds, to send the player onward to where they actually wanted to go.
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -12,18 +17,14 @@ export default function Login() {
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col p-4 sm:p-6 font-sans">
       <header className="max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
         <button
-          onClick={() => navigate(from)}
-          className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition"
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Zurück</span>
-        </button>
-        <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-amber-600 flex items-center justify-center font-black text-sm text-white">
             M
           </div>
           <span className="font-black text-sm">Masa Oyunları</span>
-        </div>
+        </button>
         <ThemeSwitcher />
       </header>
 

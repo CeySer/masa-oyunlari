@@ -86,7 +86,7 @@ export default function Profiles() {
       }}
     >
       <header className="max-w-2xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
-        <div className="flex items-center gap-2">
+        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-left">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm text-white"
             style={{ background: 'linear-gradient(145deg, var(--color-cta-from), var(--color-cta-to))' }}
@@ -97,7 +97,7 @@ export default function Profiles() {
             <div className="font-black text-sm leading-tight">Wer spielt mit?</div>
             <div className="text-xs text-[var(--color-text-muted)] max-w-[14rem] truncate">{user?.email}</div>
           </div>
-        </div>
+        </button>
         <div className="flex items-center gap-2">
           <ThemeSwitcher />
           <button
@@ -132,16 +132,19 @@ export default function Profiles() {
                 }}
               >
                 {p.name.slice(0, 1).toUpperCase()}
+                {/* Always visible (not hover-gated) - hover doesn't fire on
+                    touch devices, which would otherwise hide these entirely
+                    on phones/tablets and make edit/delete undiscoverable. */}
                 <span
                   onClick={(e) => openEdit(p, e)}
-                  className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border-2 opacity-0 group-hover:opacity-100 transition"
+                  className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border-2 transition hover:scale-110"
                   style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-bg)', color: 'var(--color-text)' }}
                 >
                   <Pencil className="w-3 h-3" />
                 </span>
                 <span
                   onClick={(e) => handleDelete(p, e)}
-                  className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border-2 opacity-0 group-hover:opacity-100 transition"
+                  className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border-2 transition hover:scale-110"
                   style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-bg)', color: '#ef4444' }}
                 >
                   <Trash2 className="w-3 h-3" />
