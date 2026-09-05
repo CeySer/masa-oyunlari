@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { QRCodeSVG } from 'qrcode.react';
 import { Tv, Trophy, Bot, Users, Sparkles, Activity, Play, PlusCircle } from 'lucide-react';
+import { OkeyTile } from '../components/OkeyTile';
 
 export default function TV() {
   const { id } = useParams();
@@ -275,22 +276,7 @@ export default function TV() {
                 {/* Gösterge Indicator Tile */}
                 {publicGameState.indicator && (
                   <div className="flex flex-col items-center border-l border-slate-800 pl-10">
-                    <div className="w-24 h-32 bg-slate-100 rounded-2xl shadow-xl border-4 border-amber-400 flex flex-col items-center justify-center">
-                      <span className={`text-4xl font-black ${
-                        publicGameState.indicator.color === 'red' ? 'text-red-600' :
-                        publicGameState.indicator.color === 'green' ? 'text-emerald-600' :
-                        publicGameState.indicator.color === 'blue' ? 'text-blue-600' :
-                        publicGameState.indicator.color === 'yellow' ? 'text-amber-500' : 'text-slate-900'
-                      }`}>
-                        {publicGameState.indicator.value}
-                      </span>
-                      <span className={`w-3 h-3 rounded-full mt-1 ${
-                        publicGameState.indicator.color === 'red' ? 'bg-red-500' :
-                        publicGameState.indicator.color === 'green' ? 'bg-emerald-500' :
-                        publicGameState.indicator.color === 'blue' ? 'bg-blue-500' :
-                        publicGameState.indicator.color === 'yellow' ? 'bg-amber-500' : 'bg-slate-800'
-                      }`} />
-                    </div>
+                    <OkeyTile tile={publicGameState.indicator} size="lg" className="border-amber-400" />
                     <span className="text-xs font-bold uppercase tracking-widest text-amber-400 mt-2">Gösterge (Okey-Indikator)</span>
                   </div>
                 )}
@@ -326,16 +312,7 @@ export default function TV() {
                     {/* Discard Pile Slot */}
                     <div className="w-20 h-28 bg-slate-900/90 rounded-2xl border-2 border-slate-700/80 flex flex-col items-center justify-center relative shadow-xl">
                       {topDiscard ? (
-                        <div className="absolute inset-0 bg-slate-100 rounded-2xl border-2 border-amber-300 flex flex-col items-center justify-center shadow-md">
-                          <span className={`text-3xl font-black ${
-                            topDiscard.color === 'red' ? 'text-red-600' :
-                            topDiscard.color === 'green' ? 'text-emerald-600' :
-                            topDiscard.color === 'blue' ? 'text-blue-600' :
-                            topDiscard.color === 'yellow' ? 'text-amber-500' : 'text-slate-900'
-                          }`}>
-                            {topDiscard.color === 'fake' ? '★' : topDiscard.value}
-                          </span>
-                        </div>
+                        <OkeyTile tile={topDiscard} size="lg" className="absolute inset-0 border-amber-300" />
                       ) : (
                         <span className="text-[10px] text-slate-500 font-bold uppercase">Ablage</span>
                       )}

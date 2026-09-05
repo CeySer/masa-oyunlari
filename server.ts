@@ -69,7 +69,7 @@ function addLog(lobby: Lobby, text: string) {
 
 // OKEY LOGIC
 function initOkeyGame(lobby: Lobby) {
-  const colors = ['red', 'green', 'blue', 'yellow'];
+  const colors = ['red', 'black', 'blue', 'yellow'];
   let tiles: Array<{ id: number; color: string; value: number }> = [];
   let idCounter = 1;
   
@@ -118,6 +118,105 @@ function initOkeyGame(lobby: Lobby) {
   addLog(lobby, `🎮 Spiel gestartet! ${players[firstPlayerIndex].name} ist am Zug.`);
   broadcastGameState(lobby);
   checkAndTriggerBotTurn(lobby);
+}
+
+// OKEY WIN VALIDATION
+type OkeyTile = { id: number; color: string; value: number };
+
+function isJokerTile(tile: OkeyTile, indicator: OkeyTile | null | undefined): boolean {
+  if (tile.color === 'fake') return true;
+  if (!indicator) return false;
+  const jokerValue = (indicator.value % 13) + 1;
+  return tile.color === indicator.color && tile.value === jokerValue;
+}
+
+// Checks whether `tiles` (excluding jokers, which are passed separately as a count)
+// can be split into valid runs (3+ consecutive values, same color) and sets
+// (3-4 tiles, same value, distinct colors), using `jokerCount` wildcards to fill gaps.
+// Standard Okey win: exactly 14 tiles across groups of size 3 or 4.
+function canFormGroups(tiles: OkeyTile[], jokerCount: number): boolean {
+  if (tiles.length + jokerCount === 0) return true;
+  if (tiles.length + jokerCount < 3) return false;
+
+  // Try forming a set (same value, distinct colors) starting from the first real tile.
+  if (tiles.length > 0) {
+    const first = tiles[0];
+    const sameValue = tiles.filter(t => t.value === first.value);
+    const distinctColors = new Set(sameValue.map(t => t.color));
+    if (distinctColors.size === sameValue.length) {
+      // Try set sizes from largest (4) to smallest (3) using real tiles + jokers
+      for (let size = Math.min(4, sameValue.length + jokerCount); size >= 3; size--) {
+        const realNeeded = Math.min(size, sameValue.length);
+        const jokersNeeded = size - realNeeded;
+        if (jokersNeeded > jokerCount) continue;
+        const used = new Set(sameValue.slice(0, realNeeded).map(t => t.id));
+        const remaining = tiles.filter(t => !used.has(t.id));
+        if (canFormGroups(remaining, jokerCount - jokersNeeded)) return true;
+      }
+    }
+
+    // Try forming a run (consecutive values, same color) that contains the first tile.
+    const sameColor = tiles.filter(t => t.color === first.color);
+    for (let size = 3; size <= 4; size++) {
+      // Try every window of length `size` that includes first.value.
+      for (let start = first.value - size + 1; start <= first.value; start++) {
+        const end = start + size - 1;
+        if (start < 1 || end > 13) continue;
+
+        let jokersNeeded = 0;
+        const used = new Set<number>();
+        for (let v = start; v <= end; v++) {
+          const match = sameColor.find(t => t.value === v && !used.has(t.id));
+          if (match) used.add(match.id);
+          else jokersNeeded++;
+        }
+        if (jokersNeeded <= jokerCount) {
+          const remaining = tiles.filter(t => !used.has(t.id));
+          if (canFormGroups(remaining, jokerCount - jokersNeeded)) return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function isValidRunSetHand(tiles: OkeyTile[], indicator: OkeyTile | null | undefined): boolean {
+  if (tiles.length !== 14) return false;
+  const jokers = tiles.filter(t => isJokerTile(t, indicator));
+  const rest = tiles.filter(t => !isJokerTile(t, indicator));
+  return canFormGroups(rest, jokers.length);
+}
+
+// "Çift" (pairs) win: 7 pairs of matching value+color tiles, jokers fill any pair.
+function isValidPairsHand(tiles: OkeyTile[], indicator: OkeyTile | null | undefined): boolean {
+  if (tiles.length !== 14) return false;
+  const jokers = tiles.filter(t => isJokerTile(t, indicator));
+  const rest = tiles.filter(t => !isJokerTile(t, indicator));
+
+  const counts = new Map<string, number>();
+  rest.forEach(t => {
+    const key = `${t.color}-${t.value}`;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+
+  let neededJokers = 0;
+  for (const count of counts.values()) {
+    if (count === 1) neededJokers += 1;
+    else if (count !== 2) return false; // 3+ of the same tile can't form pairs alone
+  }
+  return neededJokers <= jokers.length;
+}
+
+// Given a 15-tile hand, checks if discarding any one tile leaves a valid winning hand.
+function findWinningDiscard(hand: OkeyTile[], indicator: OkeyTile | null | undefined): OkeyTile | null {
+  for (let i = 0; i < hand.length; i++) {
+    const remaining = [...hand.slice(0, i), ...hand.slice(i + 1)];
+    if (isValidRunSetHand(remaining, indicator) || isValidPairsHand(remaining, indicator)) {
+      return hand[i];
+    }
+  }
+  return null;
 }
 
 // TAVLA (BACKGAMMON) LOGIC
@@ -536,6 +635,11 @@ io.on('connection', (socket) => {
     if (tile) {
       hand.push(tile);
       broadcastGameState(lobby);
+    } else if (source === 'pile' && gs.pile.length === 0) {
+      // No tiles left anywhere to draw - the round ends in a draw (no winner).
+      addLog(lobby, `⚠️ Der Stapel ist leer. Runde endet unentschieden.`);
+      lobby.status = 'finished';
+      io.to(lobbyId).emit('game_ended', { winner: null, players: lobby.players, reason: 'pile_empty' });
     }
   });
 
@@ -566,11 +670,26 @@ io.on('connection', (socket) => {
 
   socket.on('declare_win', ({ lobbyId }) => {
     const lobby = lobbies.get(lobbyId);
-    if (!lobby || lobby.status !== 'playing') return;
+    if (!lobby || lobby.status !== 'playing' || lobby.gameType !== 'okey') return;
 
     const gs = lobby.gameState;
     const winner = lobby.players[gs.turnIndex];
-    if (!winner) return;
+    if (!winner || winner.id !== socket.id) return;
+
+    const hand = gs.hands[winner.id];
+    if (!hand || hand.length !== 15) return;
+
+    const winningDiscard = findWinningDiscard(hand, gs.indicator);
+    if (!winningDiscard) {
+      socket.emit('win_rejected', {
+        message: 'Deine Steine bilden noch keine gültige Okey-Hand (Reihen/Sätze zu je 3-4 oder 7 Paare). Weiterspielen!',
+      });
+      return;
+    }
+
+    // Remove the tile that completes the winning hand from play (it's the "extra" 15th tile).
+    const idx = hand.findIndex(t => t.id === winningDiscard.id);
+    if (idx !== -1) hand.splice(idx, 1);
 
     winner.score += 100;
     lobby.status = 'finished';

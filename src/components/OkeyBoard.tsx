@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type DragEvent } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 
 interface Tile {
   id: number;
@@ -15,7 +16,7 @@ interface OkeyBoardProps {
 const TOTAL_SLOTS = 30; // 2 rows of 15 slots
 
 export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
-  const { socket, lobby, hand, publicGameState } = useGameStore();
+  const { socket, lobby, hand, publicGameState, winRejectedMessage, clearWinRejectedMessage } = useGameStore();
   const [rackSlots, setRackSlots] = useState<(Tile | null)[]>(Array(TOTAL_SLOTS).fill(null));
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
 
@@ -80,6 +81,13 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       alert('Du benötigst 15 Steine (nach dem Ziehen), um das Spiel zu beenden!');
     }
   };
+
+  useEffect(() => {
+    if (winRejectedMessage) {
+      alert(winRejectedMessage);
+      clearWinRejectedMessage();
+    }
+  }, [winRejectedMessage, clearWinRejectedMessage]);
 
   // Swap slots (Works anytime!)
   const swapSlots = (fromIdx: number, toIdx: number) => {
@@ -232,59 +240,12 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         onTouchEnd={() => handleTouchEnd(slotIdx)}
         onClick={() => handleSlotClick(slotIdx)}
         onDoubleClick={() => handleTileDoubleClick(slotIdx)}
-        className={`w-7 h-12 sm:w-9 sm:h-15 md:w-11 md:h-18 rounded-lg sm:rounded-xl border flex flex-col items-center justify-between py-1 cursor-pointer transition-all select-none flex-shrink-0 relative ${
-          tile
-            ? isSelected
-              ? 'bg-gradient-to-b from-amber-50 to-amber-100 border-red-500 ring-2 sm:ring-4 ring-red-500/80 -translate-y-2 shadow-xl scale-105 z-20'
-              : 'bg-gradient-to-b from-amber-50 via-slate-50 to-amber-100/90 border-amber-300 hover:border-amber-400 shadow hover:-translate-y-0.5'
-            : 'bg-amber-950/40 border-amber-900/40 border-dashed hover:border-amber-700/60'
-        }`}
+        className="cursor-pointer select-none flex-shrink-0 transition-transform"
       >
         {tile ? (
-          <>
-            {/* Slot Number Indicator */}
-            <span className="text-[7px] sm:text-[8px] font-mono text-slate-400 font-bold leading-none">
-              {slotIdx + 1}
-            </span>
-
-            {/* Tile Value */}
-            <span
-              className={`text-sm sm:text-base md:text-xl font-black tracking-tight leading-none ${
-                tile.color === 'red'
-                  ? 'text-red-600'
-                  : tile.color === 'green'
-                  ? 'text-emerald-600'
-                  : tile.color === 'blue'
-                  ? 'text-blue-600'
-                  : tile.color === 'yellow'
-                  ? 'text-amber-500'
-                  : 'text-slate-900'
-              }`}
-            >
-              {tile.color === 'fake' ? '★' : tile.value}
-            </span>
-
-            {/* Tile Color Dot */}
-            {tile.color !== 'fake' ? (
-              <span
-                className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full border border-black/20 ${
-                  tile.color === 'red'
-                    ? 'bg-red-500 shadow-sm shadow-red-500/50'
-                    : tile.color === 'green'
-                    ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
-                    : tile.color === 'blue'
-                    ? 'bg-blue-500 shadow-sm shadow-blue-500/50'
-                    : tile.color === 'yellow'
-                    ? 'bg-amber-500 shadow-sm shadow-amber-500/50'
-                    : 'bg-slate-900'
-                }`}
-              />
-            ) : (
-              <span className="text-[7px] font-bold text-amber-600 uppercase">Sahte</span>
-            )}
-          </>
+          <OkeyTile tile={tile} selected={isSelected} />
         ) : (
-          <span className="text-[8px] text-amber-900/40 font-mono my-auto">{slotIdx + 1}</span>
+          <EmptyOkeyTileSlot index={slotIdx} />
         )}
       </div>
     );
@@ -299,36 +260,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           <div className="flex items-center gap-2">
             <span className="text-[11px] sm:text-xs text-slate-400 font-medium">Gösterge:</span>
             {publicGameState.indicator ? (
-              <span
-                className={`text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-lg bg-slate-800 border border-slate-700 flex items-center gap-1.5 ${
-                  publicGameState.indicator.color === 'red'
-                    ? 'text-red-400'
-                    : publicGameState.indicator.color === 'green'
-                    ? 'text-emerald-400'
-                    : publicGameState.indicator.color === 'blue'
-                    ? 'text-blue-400'
-                    : publicGameState.indicator.color === 'yellow'
-                    ? 'text-amber-400'
-                    : 'text-slate-200'
-                }`}
-              >
-                <span>
-                  {publicGameState.indicator.color.toUpperCase()} {publicGameState.indicator.value}
-                </span>
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    publicGameState.indicator.color === 'red'
-                      ? 'bg-red-500'
-                      : publicGameState.indicator.color === 'green'
-                      ? 'bg-emerald-500'
-                      : publicGameState.indicator.color === 'blue'
-                      ? 'bg-blue-500'
-                      : publicGameState.indicator.color === 'yellow'
-                      ? 'bg-amber-500'
-                      : 'bg-slate-800'
-                  }`}
-                />
-              </span>
+              <OkeyTile tile={publicGameState.indicator} size="xs" />
             ) : (
               <span className="text-xs text-slate-500">-</span>
             )}
@@ -353,20 +285,8 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
               Von {prevPlayer?.name}
             </span>
             {topPrevDiscard ? (
-              <div
-                className={`text-lg sm:text-xl font-black group-hover:scale-110 transition ${
-                  topPrevDiscard.color === 'red'
-                    ? 'text-red-500'
-                    : topPrevDiscard.color === 'green'
-                    ? 'text-emerald-400'
-                    : topPrevDiscard.color === 'blue'
-                    ? 'text-blue-500'
-                    : topPrevDiscard.color === 'yellow'
-                    ? 'text-amber-400'
-                    : 'text-slate-200'
-                }`}
-              >
-                {topPrevDiscard.value}
+              <div className="group-hover:scale-110 transition">
+                <OkeyTile tile={topPrevDiscard} size="xs" />
               </div>
             ) : (
               <span className="text-[10px] text-slate-600 italic">Leer</span>
@@ -402,21 +322,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           >
             <span className="text-[9px] sm:text-[10px] font-semibold text-red-300 mb-0.5">Deine Ablage</span>
             {myTopDiscard ? (
-              <div
-                className={`text-lg sm:text-xl font-black ${
-                  myTopDiscard.color === 'red'
-                    ? 'text-red-400'
-                    : myTopDiscard.color === 'green'
-                    ? 'text-emerald-400'
-                    : myTopDiscard.color === 'blue'
-                    ? 'text-blue-400'
-                    : myTopDiscard.color === 'yellow'
-                    ? 'text-amber-400'
-                    : 'text-slate-200'
-                }`}
-              >
-                {myTopDiscard.value}
-              </div>
+              <OkeyTile tile={myTopDiscard} size="xs" />
             ) : (
               <span className="text-[9px] text-slate-500 italic">Hier abwerfen</span>
             )}

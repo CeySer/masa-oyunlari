@@ -9,6 +9,11 @@ export interface LeaderboardEntry {
   games: number;
 }
 
+export interface GameResult {
+  winner: { id: string; name: string } | null;
+  reason?: string;
+}
+
 interface GameState {
   socket: Socket | null;
   lobby: any;
@@ -16,11 +21,15 @@ interface GameState {
   hand: any[];
   publicGameState: any;
   leaderboard: LeaderboardEntry[];
+  gameResult: GameResult | null;
+  winRejectedMessage: string | null;
   connectSocket: () => void;
   setLobby: (lobby: any) => void;
   setPlayer: (player: any) => void;
   setHand: (hand: any[]) => void;
   setPublicGameState: (state: any) => void;
+  clearGameResult: () => void;
+  clearWinRejectedMessage: () => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -30,6 +39,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   hand: [],
   publicGameState: null,
   leaderboard: [],
+  gameResult: null,
+  winRejectedMessage: null,
   connectSocket: () => {
     if (!get().socket) {
       // VITE_SERVER_URL points at the game server when frontend and backend
@@ -67,10 +78,15 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ leaderboard });
       });
 
-      socket.on('game_ended', ({ winner }) => {
+      socket.on('game_ended', ({ winner, reason }) => {
         set((state) => ({
           lobby: state.lobby ? { ...state.lobby, status: 'finished' } : null,
+          gameResult: { winner: winner || null, reason },
         }));
+      });
+
+      socket.on('win_rejected', ({ message }: { message: string }) => {
+        set({ winRejectedMessage: message });
       });
     }
   },
@@ -78,4 +94,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   setPlayer: (player) => set({ player }),
   setHand: (hand) => set({ hand }),
   setPublicGameState: (publicGameState) => set({ publicGameState }),
+  clearGameResult: () => set({ gameResult: null }),
+  clearWinRejectedMessage: () => set({ winRejectedMessage: null }),
 }));

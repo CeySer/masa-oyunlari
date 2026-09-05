@@ -8,7 +8,7 @@ import { Tv, ArrowLeft, LogOut, Bot, Trophy, RefreshCw } from 'lucide-react';
 export default function Game() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { socket, lobby, publicGameState, player } = useGameStore();
+  const { socket, lobby, publicGameState, player, gameResult, clearGameResult } = useGameStore();
   const [showTVOverlay, setShowTVOverlay] = useState(false);
 
   useEffect(() => {
@@ -28,6 +28,7 @@ export default function Game() {
 
   const handleBackToLobby = () => {
     socket?.emit('leave_game', { lobbyId: id });
+    clearGameResult();
     navigate(`/lobby/${id}`);
   };
 
@@ -50,6 +51,56 @@ export default function Game() {
 
   const currentPlayer = lobby.players[publicGameState.turnIndex];
   const isMyTurn = currentPlayer?.id === socket?.id;
+
+  if (lobby.status === 'finished') {
+    const iWon = gameResult?.winner?.id === socket?.id;
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 select-none text-center">
+        <Trophy className={`w-20 h-20 mb-4 ${iWon ? 'text-amber-400 animate-bounce' : 'text-slate-600'}`} />
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">
+          {gameResult?.winner
+            ? iWon
+              ? 'Du hast gewonnen! 🎉'
+              : `${gameResult.winner.name} hat gewonnen`
+            : 'Unentschieden'}
+        </h1>
+        {gameResult?.reason === 'pile_empty' && (
+          <p className="text-slate-400 text-sm mb-6">Der Nachziehstapel ist leer - niemand konnte Okey ausrufen.</p>
+        )}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-sm mt-4 shadow-2xl">
+          <h2 className="text-sm font-bold text-slate-400 mb-4 uppercase tracking-wide">Punktestand</h2>
+          <ul className="space-y-2">
+            {[...lobby.players]
+              .sort((a: any, b: any) => b.score - a.score)
+              .map((p: any) => (
+                <li key={p.id} className="flex justify-between items-center text-sm">
+                  <span className="flex items-center gap-1.5">
+                    {p.isBot && <Bot className="w-3.5 h-3.5 text-slate-500" />}
+                    {p.name}
+                  </span>
+                  <span className="font-black text-emerald-400">{p.score} Pkt</span>
+                </li>
+              ))}
+          </ul>
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={handleBackToLobby}
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold text-sm rounded-xl transition flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Zurück zur Lobby
+          </button>
+          <button
+            onClick={() => navigate('/')}
+            className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition"
+          >
+            Hauptmenü
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-2 sm:p-4 select-none">
