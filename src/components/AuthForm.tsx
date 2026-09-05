@@ -67,7 +67,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
       <p className="text-xs mb-5" style={{ color: 'var(--color-text-muted)' }}>
         {mode === 'reset'
           ? 'Gib deine E-Mail-Adresse ein - wir schicken dir einen Link zum Zurücksetzen.'
-          : 'Ein Konto wird für Online-Mehrspieler-Partien gegen andere Menschen benötigt.'}
+          : 'Melde dich an, um deine Spielerprofile zu verwalten und loszulegen.'}
       </p>
 
       {mode !== 'reset' && (

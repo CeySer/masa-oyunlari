@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
+import { useProfileStore } from '../store/profileStore';
+import { isFirebaseConfigured } from '../lib/firebase';
 import { QRCodeSVG } from 'qrcode.react';
 import { Users, Play, Bot, UserPlus, Copy, Check, Tv, ArrowLeft, Trash2 } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
@@ -11,33 +13,41 @@ export default function Lobby() {
   const navigate = useNavigate();
   const { socket, lobby, setPlayer, player } = useGameStore();
   const { user, authReady, getIdToken } = useAuthStore();
+  const { activeProfile, profilesReady } = useProfileStore();
   const [name, setName] = useState(localStorage.getItem('playerName') || '');
   const [copied, setCopied] = useState(false);
 
   const attemptJoin = async () => {
     if (!socket || !id) return;
-    const storedName = user?.displayName || localStorage.getItem('playerName') || 'Spieler';
+    const storedName = activeProfile?.name || localStorage.getItem('playerName') || 'Spieler';
     const idToken = await getIdToken();
-    socket.emit('join_lobby', { lobbyId: id, name: storedName, role: 'player', idToken }, (res: any) => {
-      if (res.success) {
-        setPlayer(res.player);
-      } else if (res.error === 'auth_required') {
-        navigate('/login', { state: { from: `/lobby/${id}` } });
-      } else if (res.error) {
-        alert(res.error);
-        navigate('/');
+    socket.emit(
+      'join_lobby',
+      { lobbyId: id, name: storedName, role: 'player', idToken, profileId: activeProfile?.id },
+      (res: any) => {
+        if (res.success) {
+          setPlayer(res.player);
+        } else if (res.error === 'auth_required') {
+          navigate('/login', { state: { from: `/lobby/${id}` } });
+        } else if (res.error === 'invalid_profile') {
+          navigate('/profiles', { state: { from: `/lobby/${id}` } });
+        } else if (res.error) {
+          alert(res.error);
+          navigate('/');
+        }
       }
-    });
+    );
   };
 
   useEffect(() => {
     // If player is not in lobby state yet, attempt auto-join. Wait for the
-    // auth state to resolve first so an already-logged-in visitor's account
-    // is used rather than briefly joining anonymously.
-    if (socket && id && authReady) {
+    // auth (and, when Firebase is configured, the profile) state to resolve
+    // first so an already-logged-in visitor's account/profile is used
+    // rather than briefly joining anonymously.
+    if (socket && id && authReady && (!isFirebaseConfigured || profilesReady)) {
       attemptJoin();
     }
-  }, [socket, id, authReady, user]);
+  }, [socket, id, authReady, user, profilesReady, activeProfile]);
 
   useEffect(() => {
     if (lobby?.status === 'playing') {

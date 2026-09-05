@@ -59,11 +59,12 @@ das Leaderboard nur im Arbeitsspeicher.
 ## Online-Konten einrichten (optional)
 
 Ohne diese Einrichtung läuft die App genau wie bisher: freier Name, kein
-Login, Bot-Testspiele funktionieren uneingeschränkt. Sobald konfiguriert,
-brauchen Spieler ein Konto (E-Mail/Passwort oder Google), um eine echte
-Online-Mehrspieler-Lobby zu erstellen oder ihr beizutreten – das
-Solo-Testspiel gegen Bots bleibt für alle ohne Login offen. Punkte/Elo werden
-dann pro Konto dauerhaft in Firestore gespeichert.
+Login, alles funktioniert uneingeschränkt ohne Konto. Sobald konfiguriert,
+ist die Anmeldung (E-Mail/Passwort oder Google) die verpflichtende
+Startseite – auch für das Solo-Testspiel gegen Bots. Nach dem Login wählt man
+ein Spielerprofil (ein Konto kann mehrere Profile halten, z.B. eines pro
+Familienmitglied, wie bei EduPlay Hub); jedes Profil hat seine eigene
+dauerhafte Elo-/Sieg-Statistik, gespeichert in Firestore.
 
 **1. Authentication aktivieren** – Firebase Console → dein Projekt
 (`masa-oyunlari-3297c`) → Build → Authentication → "Get started" →

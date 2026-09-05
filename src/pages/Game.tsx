@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
+import { useProfileStore } from '../store/profileStore';
+import { isFirebaseConfigured } from '../lib/firebase';
 import OkeyBoard from '../components/OkeyBoard';
 import TavlaBoard from '../components/TavlaBoard';
 import { Tv, ArrowLeft, LogOut, Bot, Trophy, RefreshCw } from 'lucide-react';
@@ -10,20 +12,22 @@ export default function Game() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { socket, lobby, publicGameState, player, gameResult, clearGameResult } = useGameStore();
-  const { user, authReady, getIdToken } = useAuthStore();
+  const { authReady, getIdToken } = useAuthStore();
+  const { activeProfile, profilesReady } = useProfileStore();
   const [showTVOverlay, setShowTVOverlay] = useState(false);
 
   useEffect(() => {
     // Attempt auto-reconnect to game state if state is empty. Wait for auth
-    // to resolve so a logged-in player reconnects with their own account
-    // rather than briefly as an anonymous guest.
-    if (socket && id && !player && authReady) {
-      const storedName = user?.displayName || localStorage.getItem('playerName') || 'Spieler';
+    // (and, when Firebase is configured, the profile) to resolve so a
+    // logged-in player reconnects with their own account rather than
+    // briefly as an anonymous guest.
+    if (socket && id && !player && authReady && (!isFirebaseConfigured || profilesReady)) {
+      const storedName = activeProfile?.name || localStorage.getItem('playerName') || 'Spieler';
       getIdToken().then((idToken) => {
-        socket.emit('join_lobby', { lobbyId: id, name: storedName, role: 'player', idToken });
+        socket.emit('join_lobby', { lobbyId: id, name: storedName, role: 'player', idToken, profileId: activeProfile?.id });
       });
     }
-  }, [socket, id, player, authReady, user]);
+  }, [socket, id, player, authReady, profilesReady, activeProfile]);
 
   const handleLeaveGame = () => {
     if (confirm('Möchtest du das Spiel wirklich verlassen? Ein Bot wird deinen Platz übernehmen.')) {

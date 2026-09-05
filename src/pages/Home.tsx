@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
-import { Play, Tv, Trophy, Bot, Dices, Layers, Sparkles, LogIn, LogOut, UserCircle2, MailWarning } from 'lucide-react';
+import { useProfileStore } from '../store/profileStore';
+import { Play, Tv, Trophy, Bot, Dices, Layers, LogOut, MailWarning, Pencil } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import { isFirebaseConfigured } from '../lib/firebase';
 
@@ -14,13 +15,17 @@ const GAMES = [
 export default function Home() {
   const navigate = useNavigate();
   const { socket, leaderboard } = useGameStore();
-  const { user, authReady, logout, getIdToken, resendVerificationEmail, authNotice } = useAuthStore();
+  const { user, logout, getIdToken, resendVerificationEmail, authNotice } = useAuthStore();
+  const { activeProfile } = useProfileStore();
+  // Manual name field is only used as a dev/local fallback when no Firebase
+  // project is configured at all - with accounts enabled, the active player
+  // profile's name is always used instead.
   const [name, setName] = useState(localStorage.getItem('playerName') || '');
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   useEffect(() => {
-    if (!name) {
+    if (!isFirebaseConfigured && !name) {
       const defaultNames = ['Ahmet', 'Mehmet', 'Can', 'Deniz', 'Elif', 'Zeynep'];
       const randomName = defaultNames[Math.floor(Math.random() * defaultNames.length)];
       setName(randomName);
@@ -28,21 +33,22 @@ export default function Home() {
   }, []);
 
   const handleCreateLobby = async (autoAddBots = false) => {
-    // Online multiplayer (no bots auto-added) needs a real account so games
-    // count towards a persistent identity/leaderboard. The solo bot-test
-    // stays open to everyone, exactly like before.
-    if (!autoAddBots && isFirebaseConfigured && !user) {
-      navigate('/login', { state: { from: '/' } });
+    // With accounts enabled, a chosen player profile is required for every
+    // lobby (online or solo bot-test) - the route guard normally ensures
+    // this already, this is just a defensive fallback.
+    if (isFirebaseConfigured && !activeProfile) {
+      navigate('/profiles', { state: { from: '/' } });
       return;
     }
 
-    const trimmedName = (user?.displayName || name).trim() || 'Spieler';
-    localStorage.setItem('playerName', trimmedName);
-    const idToken = !autoAddBots ? await getIdToken() : undefined;
+    const trimmedName = isFirebaseConfigured ? activeProfile!.name : name.trim() || 'Spieler';
+    if (!isFirebaseConfigured) localStorage.setItem('playerName', trimmedName);
+    const idToken = isFirebaseConfigured ? await getIdToken() : undefined;
+    const profileId = isFirebaseConfigured ? activeProfile!.id : undefined;
 
     socket?.emit(
       'create_lobby',
-      { gameType, name: trimmedName, online: !autoAddBots, idToken },
+      { gameType, name: trimmedName, idToken, profileId },
       (res: any) => {
         if (res.success) {
           if (autoAddBots) {
@@ -107,27 +113,32 @@ export default function Home() {
             <span className="hidden sm:inline">Meister-Rangliste</span>
           </button>
           <ThemeSwitcher />
-          {isFirebaseConfigured && (
-            user ? (
-              <button
-                onClick={() => logout()}
-                title="Abmelden"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text)]"
-              >
-                <UserCircle2 className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-                <span className="hidden sm:inline max-w-[8rem] truncate">{user.displayName || user.email}</span>
-                <LogOut className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-              </button>
-            ) : (
-              <button
-                onClick={() => navigate('/login', { state: { from: '/' } })}
-                title="Anmelden"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text)]"
-              >
-                <LogIn className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-                <span className="hidden sm:inline">Anmelden</span>
-              </button>
-            )
+          {isFirebaseConfigured && user && (
+            <button
+              onClick={() => navigate('/profiles', { state: { from: '/' } })}
+              title="Profil wechseln"
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs font-semibold transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text)]"
+            >
+              {activeProfile && (
+                <span
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
+                  style={{ background: activeProfile.color }}
+                >
+                  {activeProfile.name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <span className="hidden sm:inline max-w-[6rem] truncate">{activeProfile?.name || '...'}</span>
+              <Pencil className="w-3 h-3 text-[var(--color-text-muted)]" />
+            </button>
+          )}
+          {isFirebaseConfigured && user && (
+            <button
+              onClick={() => logout()}
+              title="Abmelden"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text)]"
+            >
+              <LogOut className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+            </button>
           )}
         </div>
       </header>
@@ -231,19 +242,22 @@ export default function Home() {
             />
 
             <div className="relative space-y-7">
-              {/* Player Name Input */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">
-                  Dein Spielername
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition"
-                  placeholder="z.B. Can Yılmaz"
-                />
-              </div>
+              {/* Player Name Input - dev/local fallback only, without Firebase
+                  the active profile's name is used instead */}
+              {!isFirebaseConfigured && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">
+                    Dein Spielername
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-4 py-3.5 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition"
+                    placeholder="z.B. Can Yılmaz"
+                  />
+                </div>
+              )}
 
               {/* Game Selector */}
               <div>
@@ -305,18 +319,12 @@ export default function Home() {
               <div className="space-y-3 pt-1">
                 <button
                   onClick={() => handleCreateLobby(false)}
-                  disabled={isFirebaseConfigured && !authReady}
+                  disabled={isFirebaseConfigured && !activeProfile}
                   className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-[var(--color-cta-from)] to-[var(--color-cta-to)] hover:from-[var(--color-cta-hover-from)] hover:to-[var(--color-cta-hover-to)] disabled:opacity-60 text-white py-4 rounded-2xl font-bold shadow-xl transition active:scale-[0.99]"
                 >
                   <Play className="w-5 h-5 fill-current" />
                   <span>Mehrspieler-Lobby Erstellen</span>
                 </button>
-                {isFirebaseConfigured && !user && (
-                  <p className="flex items-center justify-center gap-1.5 text-[11px] text-center" style={{ color: 'var(--color-text-muted)' }}>
-                    <Sparkles className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
-                    Für echtes Online-Spiel gegen andere ist ein Konto nötig.
-                  </p>
-                )}
 
                 <button
                   onClick={() => handleCreateLobby(true)}
