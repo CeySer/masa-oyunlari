@@ -686,6 +686,11 @@ io.on('connection', (socket) => {
         callback({ success: false, error: `Maximal ${MAX_PROFILES_PER_ACCOUNT} Profile pro Konto.` });
         return;
       }
+      const nameTaken = existing.docs.some((doc) => (doc.data().name || '').trim().toLowerCase() === trimmedName.toLowerCase());
+      if (nameTaken) {
+        callback({ success: false, error: 'Dieser Profilname wird bei dir schon verwendet.' });
+        return;
+      }
       const docRef = db.collection('profiles').doc();
       const profile: PlayerProfile = {
         id: docRef.id,
@@ -727,6 +732,18 @@ io.on('connection', (socket) => {
     const update: Partial<PlayerProfile> = {};
     if (typeof name === 'string' && name.trim()) update.name = name.trim().slice(0, 24);
     if (typeof color === 'string' && color) update.color = color;
+
+    if (update.name && update.name.toLowerCase() !== profile.name.toLowerCase()) {
+      const existing = await db.collection('profiles').where('ownerUid', '==', verified.uid).get();
+      const nameTaken = existing.docs.some(
+        (doc) => doc.id !== profileId && (doc.data().name || '').trim().toLowerCase() === update.name!.toLowerCase()
+      );
+      if (nameTaken) {
+        callback({ success: false, error: 'Dieser Profilname wird bei dir schon verwendet.' });
+        return;
+      }
+    }
+
     try {
       await db.collection('profiles').doc(profileId).set(update, { merge: true });
       if (globalLeaderboard[profileId] && update.name) {
