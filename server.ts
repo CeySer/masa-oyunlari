@@ -24,7 +24,33 @@ const PORT = Number(process.env.PORT) || 3000;
 // for how to obtain a service account key from the Firebase Console.
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
 const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL;
-const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+// The private key is the fiddly one to get through a hosting dashboard's env
+// var UI intact - copy/pasting it as plain text easily loses real newlines
+// or picks up stray surrounding quotes, which breaks PEM parsing. Prefer
+// FIREBASE_PRIVATE_KEY_BASE64 (the key, base64-encoded - immune to all of
+// that) when set; otherwise fall back to FIREBASE_PRIVATE_KEY with some
+// defensive cleanup of the most common paste mistakes.
+function resolveFirebasePrivateKey(): string | undefined {
+  const b64 = process.env.FIREBASE_PRIVATE_KEY_BASE64;
+  if (b64) {
+    try {
+      return Buffer.from(b64.trim(), 'base64').toString('utf8');
+    } catch {
+      return undefined;
+    }
+  }
+  let raw = process.env.FIREBASE_PRIVATE_KEY;
+  if (!raw) return undefined;
+  raw = raw.trim();
+  // Strip accidental wrapping quotes (easy to paste in by mistake).
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    raw = raw.slice(1, -1);
+  }
+  return raw.replace(/\\n/g, '\n');
+}
+
+const FIREBASE_PRIVATE_KEY = resolveFirebasePrivateKey();
 
 const firebaseAdminEnabled = Boolean(FIREBASE_PROJECT_ID && FIREBASE_CLIENT_EMAIL && FIREBASE_PRIVATE_KEY);
 
