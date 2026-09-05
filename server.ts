@@ -339,6 +339,35 @@ function initTavlaGame(lobby: Lobby) {
   checkAndTriggerBotTurn(lobby);
 }
 
+// Applies a single checker move if legal, mutating the board/bar in place.
+// Shared by the human move_checker handler and the bot AI so both follow
+// exactly the same rules.
+function applyTavlaMove(gs: any, color: 'white' | 'black', fromIndex: number, dieValue: number): boolean {
+  const direction = color === 'white' ? 1 : -1;
+  const toIndex = fromIndex + dieValue * direction;
+  if (toIndex < 0 || toIndex >= 24) return false;
+
+  const sourcePoint = gs.board[fromIndex];
+  const destPoint = gs.board[toIndex];
+  if (!sourcePoint || sourcePoint.count <= 0 || sourcePoint.color !== color) return false;
+  // Legal target: empty, own color, or exactly 1 enemy checker (hit)
+  if (!(destPoint.count === 0 || destPoint.color === color || destPoint.count === 1)) return false;
+
+  sourcePoint.count -= 1;
+  if (sourcePoint.count === 0) sourcePoint.color = null;
+
+  if (destPoint.count === 1 && destPoint.color !== color) {
+    const enemyColor = destPoint.color!;
+    gs.bar[enemyColor] += 1;
+    destPoint.count = 1;
+    destPoint.color = color;
+  } else {
+    destPoint.count += 1;
+    destPoint.color = color;
+  }
+  return true;
+}
+
 // BOT AI CONTROLLER
 function checkAndTriggerBotTurn(lobby: Lobby) {
   if (lobby.status !== 'playing' || !lobby.gameState) return;
@@ -466,7 +495,34 @@ function executeTavlaBotTurn(lobby: Lobby, botPlayer: Player) {
     return;
   }
 
-  // 2. End turn if no moves
+  // 2. Try to play one remaining die value (first legal checker found for it).
+  const color: 'white' | 'black' | undefined = gs.playerColors[botPlayer.id];
+  let moved = false;
+  if (color) {
+    for (let i = 0; i < gs.movesRemaining.length; i++) {
+      const dieValue = gs.movesRemaining[i];
+      for (let from = 0; from < 24; from++) {
+        if (applyTavlaMove(gs, color, from, dieValue)) {
+          gs.movesRemaining.splice(i, 1);
+          moved = true;
+          break;
+        }
+      }
+      if (moved) break;
+    }
+  }
+
+  if (moved) {
+    broadcastGameState(lobby);
+    if (gs.movesRemaining.length > 0) {
+      setTimeout(() => {
+        executeTavlaBotTurn(lobby, botPlayer);
+      }, 700);
+      return;
+    }
+  }
+
+  // 3. No more legal moves (or none possible) - end turn
   gs.diceRolled = false;
   gs.dice = [];
   gs.movesRemaining = [];
@@ -488,6 +544,7 @@ function broadcastGameState(lobby: Lobby) {
     board: gs.board || null,
     bar: gs.bar || null,
     off: gs.off || null,
+    playerColors: gs.playerColors || null,
     dice: gs.dice || [],
     movesRemaining: gs.movesRemaining || [],
     diceRolled: gs.diceRolled || false,
@@ -854,48 +911,29 @@ io.on('connection', (socket) => {
     if (!currentPlayer || currentPlayer.id !== socket.id || !gs.diceRolled) return;
 
     const dieIdx = gs.movesRemaining.indexOf(dieValue);
-    if (dieIdx === -1) return;
+    if (dieIdx === -1) {
+      socket.emit('move_rejected', { message: 'Dieser Würfelwert ist nicht mehr verfügbar.' });
+      return;
+    }
 
     const color = gs.playerColors[currentPlayer.id];
-    const direction = color === 'white' ? 1 : -1;
-    const toIndex = fromIndex + (dieValue * direction);
-
-    if (toIndex >= 0 && toIndex < 24) {
-      const sourcePoint = gs.board[fromIndex];
-      const destPoint = gs.board[toIndex];
-
-      if (sourcePoint.count > 0 && sourcePoint.color === color) {
-        // Legal target point check: empty, same color, or 1 enemy checker (hit)
-        if (destPoint.count === 0 || destPoint.color === color || destPoint.count === 1) {
-          sourcePoint.count -= 1;
-          if (sourcePoint.count === 0) sourcePoint.color = null;
-
-          if (destPoint.count === 1 && destPoint.color !== color) {
-            // Hit enemy checker
-            const enemyColor = destPoint.color!;
-            gs.bar[enemyColor] += 1;
-            destPoint.count = 1;
-            destPoint.color = color;
-          } else {
-            destPoint.count += 1;
-            destPoint.color = color;
-          }
-
-          // Use die
-          gs.movesRemaining.splice(dieIdx, 1);
-
-          // End turn if no moves remaining
-          if (gs.movesRemaining.length === 0) {
-            gs.diceRolled = false;
-            gs.dice = [];
-            gs.turnIndex = (gs.turnIndex + 1) % lobby.players.length;
-            checkAndTriggerBotTurn(lobby);
-          }
-
-          broadcastGameState(lobby);
-        }
-      }
+    if (!applyTavlaMove(gs, color, fromIndex, dieValue)) {
+      socket.emit('move_rejected', { message: 'Dieser Zug ist nicht erlaubt.' });
+      return;
     }
+
+    // Use die
+    gs.movesRemaining.splice(dieIdx, 1);
+
+    // End turn if no moves remaining
+    if (gs.movesRemaining.length === 0) {
+      gs.diceRolled = false;
+      gs.dice = [];
+      gs.turnIndex = (gs.turnIndex + 1) % lobby.players.length;
+      checkAndTriggerBotTurn(lobby);
+    }
+
+    broadcastGameState(lobby);
   });
 
   socket.on('disconnect', () => {

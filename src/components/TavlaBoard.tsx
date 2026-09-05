@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { Dices, RefreshCw } from 'lucide-react';
 
@@ -7,40 +7,66 @@ interface TavlaBoardProps {
 }
 
 export default function TavlaBoard({ lobbyId }: TavlaBoardProps) {
-  const { socket, lobby, publicGameState } = useGameStore();
+  const { socket, lobby, publicGameState, moveRejectedMessage, clearMoveRejectedMessage } = useGameStore();
   const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (moveRejectedMessage) {
+      alert(moveRejectedMessage);
+      clearMoveRejectedMessage();
+    }
+  }, [moveRejectedMessage, clearMoveRejectedMessage]);
 
   if (!publicGameState || !lobby) return null;
 
   const currentPlayer = lobby.players[publicGameState.turnIndex];
   const isMyTurn = currentPlayer?.id === socket?.id;
+  // 'white' moves toward index 23, 'black' toward index 0 - see server.ts initTavlaGame.
+  const myColor: 'white' | 'black' | undefined = publicGameState.playerColors?.[socket?.id || ''];
+  const direction = myColor === 'white' ? 1 : -1;
+
+  // Reset any stale selection once it's no longer my turn (e.g. I just moved
+  // my last die, or a fresh turn started).
+  useEffect(() => {
+    if (!isMyTurn || !publicGameState.diceRolled) {
+      setSelectedPoint(null);
+    }
+  }, [isMyTurn, publicGameState.diceRolled]);
 
   const handleRollDice = () => {
     if (!isMyTurn || publicGameState.diceRolled) return;
     socket?.emit('roll_dice', { lobbyId });
   };
 
+  const selectOwnPoint = (pointIndex: number) => {
+    const pt = publicGameState.board[pointIndex];
+    if (pt && pt.count > 0 && pt.color === myColor) {
+      setSelectedPoint(pointIndex);
+      return true;
+    }
+    return false;
+  };
+
   const handlePointClick = (pointIndex: number) => {
-    if (!isMyTurn || !publicGameState.diceRolled) return;
+    if (!isMyTurn || !publicGameState.diceRolled || !myColor) return;
 
     if (selectedPoint === null) {
-      // Select source point if it has current player's checkers
-      const pt = publicGameState.board[pointIndex];
-      if (pt && pt.count > 0) {
-        setSelectedPoint(pointIndex);
-      }
+      selectOwnPoint(pointIndex);
+    } else if (selectedPoint === pointIndex) {
+      setSelectedPoint(null);
     } else {
-      // Trying to move from selectedPoint to pointIndex
-      const distance = Math.abs(pointIndex - selectedPoint);
-      if (publicGameState.movesRemaining.includes(distance)) {
+      // Only the exact forward point for one of the remaining dice is a
+      // legal target - own checkers always move in one fixed direction.
+      const dieValue = (pointIndex - selectedPoint) * direction;
+      if (dieValue > 0 && publicGameState.movesRemaining.includes(dieValue)) {
         socket?.emit('move_checker', {
           lobbyId,
           fromIndex: selectedPoint,
-          dieValue: distance,
+          dieValue,
         });
         setSelectedPoint(null);
-      } else {
-        setSelectedPoint(pointIndex);
+      } else if (!selectOwnPoint(pointIndex)) {
+        setSelectedPoint(null);
       }
     }
   };
