@@ -7,6 +7,8 @@ import {
   GoogleAuthProvider,
   updateProfile,
   signOut,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   type User,
 } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from '../lib/firebase';
@@ -37,13 +39,17 @@ interface AuthState {
   authReady: boolean;
   authLoading: boolean;
   authError: string | null;
+  authNotice: string | null;
   initAuth: () => void;
   registerWithEmail: (email: string, password: string, displayName: string) => Promise<boolean>;
   loginWithEmail: (email: string, password: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
   logout: () => Promise<void>;
   clearAuthError: () => void;
+  clearAuthNotice: () => void;
   getIdToken: () => Promise<string | undefined>;
+  resendVerificationEmail: () => Promise<boolean>;
+  sendPasswordReset: (email: string) => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -52,6 +58,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   authReady: !isFirebaseConfigured,
   authLoading: false,
   authError: null,
+  authNotice: null,
 
   initAuth: () => {
     if (!auth) return;
@@ -68,7 +75,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (displayName.trim()) {
         await updateProfile(cred.user, { displayName: displayName.trim() });
       }
-      set({ user: auth.currentUser, authLoading: false });
+      try {
+        await sendEmailVerification(cred.user);
+      } catch {
+        // Non-fatal - the account still works, just skip the notice.
+      }
+      set({
+        user: auth.currentUser,
+        authLoading: false,
+        authNotice: 'Konto erstellt! Wir haben dir eine Bestätigungs-E-Mail geschickt.',
+      });
       return true;
     } catch (err: any) {
       set({ authError: translateAuthError(err?.code), authLoading: false });
@@ -108,10 +124,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearAuthError: () => set({ authError: null }),
+  clearAuthNotice: () => set({ authNotice: null }),
 
   getIdToken: async () => {
     const user = get().user;
     if (!user) return undefined;
     return user.getIdToken();
+  },
+
+  resendVerificationEmail: async () => {
+    const user = get().user;
+    if (!user) return false;
+    set({ authLoading: true, authError: null });
+    try {
+      await sendEmailVerification(user);
+      set({ authLoading: false, authNotice: 'Bestätigungs-E-Mail erneut gesendet - bitte Posteingang (auch Spam) prüfen.' });
+      return true;
+    } catch (err: any) {
+      set({ authError: translateAuthError(err?.code), authLoading: false });
+      return false;
+    }
+  },
+
+  sendPasswordReset: async (email) => {
+    if (!auth) return false;
+    set({ authLoading: true, authError: null });
+    try {
+      await sendPasswordResetEmail(auth, email);
+      set({
+        authLoading: false,
+        authNotice: 'Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen des Passworts geschickt.',
+      });
+      return true;
+    } catch (err: any) {
+      // Don't leak whether the address exists - show the same generic notice
+      // for auth/user-not-found as for success.
+      if (err?.code === 'auth/user-not-found') {
+        set({
+          authLoading: false,
+          authNotice: 'Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen des Passworts geschickt.',
+        });
+        return true;
+      }
+      set({ authError: translateAuthError(err?.code), authLoading: false });
+      return false;
+    }
   },
 }));

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
-import { Play, Tv, Trophy, Bot, Dices, Layers, ShieldAlert, Sparkles, LogIn, LogOut, UserCircle2 } from 'lucide-react';
+import { Play, Tv, Trophy, Bot, Dices, Layers, ShieldAlert, Sparkles, LogIn, LogOut, UserCircle2, MailWarning } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import AuthModal from '../components/AuthModal';
 import { isFirebaseConfigured } from '../lib/firebase';
@@ -10,7 +10,7 @@ import { isFirebaseConfigured } from '../lib/firebase';
 export default function Home() {
   const navigate = useNavigate();
   const { socket, leaderboard } = useGameStore();
-  const { user, authReady, logout, getIdToken } = useAuthStore();
+  const { user, authReady, logout, getIdToken, resendVerificationEmail, authNotice } = useAuthStore();
   const [name, setName] = useState(localStorage.getItem('playerName') || '');
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -129,9 +129,25 @@ export default function Home() {
         />
       )}
 
+      {user && !user.emailVerified && (
+        <div className="max-w-xl w-full mx-auto mt-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-xs" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)', color: 'var(--color-text-muted)' }}>
+          <span className="flex items-center gap-2">
+            <MailWarning className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
+            <span>E-Mail-Adresse noch nicht bestätigt.{authNotice ? ` ${authNotice}` : ''}</span>
+          </span>
+          <button
+            onClick={() => resendVerificationEmail()}
+            className="font-bold whitespace-nowrap"
+            style={{ color: 'var(--color-accent)' }}
+          >
+            Erneut senden
+          </button>
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="max-w-xl w-full mx-auto my-auto py-8">
-        
+
         {showLeaderboard ? (
           <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-6 shadow-2xl animate-fade-in">
             <div className="flex items-center justify-between mb-6">
