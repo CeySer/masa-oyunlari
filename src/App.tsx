@@ -10,17 +10,24 @@ import Game from './pages/Game';
 import TV from './pages/TV';
 import { useEffect } from 'react';
 import { useGameStore } from './store/gameStore';
+import { applyTheme, getStoredTheme } from './lib/theme';
 
 export default function App() {
   const connectSocket = useGameStore(state => state.connectSocket);
-  
+
   useEffect(() => {
     connectSocket();
   }, [connectSocket]);
 
+  useEffect(() => {
+    // Apply the saved theme on first load, regardless of which page/route
+    // the user lands on directly (e.g. a shared /lobby/:id link).
+    applyTheme(getStoredTheme());
+  }, []);
+
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-neutral-50 text-neutral-900 font-sans">
+      <div className="min-h-screen font-sans" style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/lobby/:id" element={<Lobby />} />

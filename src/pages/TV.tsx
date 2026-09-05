@@ -56,17 +56,17 @@ export default function TV() {
 
   if (!connected) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white p-6 font-sans">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-8 space-y-6">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] p-6 font-sans">
+        <div className="max-w-md w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-2xl p-8 space-y-6">
           <div className="text-center">
             <Tv className="w-12 h-12 text-red-500 mx-auto mb-3" />
             <h2 className="text-2xl font-bold">TV / Monitor Modus</h2>
-            <p className="text-xs text-slate-400 mt-1">Öffentlicher Großbildschirm für TV & Tablets</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">Öffentlicher Großbildschirm für TV & Tablets</p>
           </div>
 
           {/* Quick Create TV Lobby */}
-          <div className="space-y-3 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60">
-            <label className="block text-xs font-bold uppercase text-amber-400">
+          <div className="space-y-3 bg-[var(--color-surface-2)] p-4 rounded-2xl border border-[var(--color-border-strong)]">
+            <label className="block text-xs font-bold uppercase text-[var(--color-accent)]">
               1. Neue TV-Lobby Erstellen
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -74,7 +74,7 @@ export default function TV() {
                 type="button"
                 onClick={() => setGameType('okey')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition border ${
-                  gameType === 'okey' ? 'bg-red-600 border-red-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'
+                  gameType === 'okey' ? 'bg-red-600 border-red-400 text-white' : 'bg-[var(--color-surface-2)] border-[var(--color-border-strong)] text-[var(--color-text-muted)]'
                 }`}
               >
                 Okey
@@ -83,7 +83,7 @@ export default function TV() {
                 type="button"
                 onClick={() => setGameType('tavla')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition border ${
-                  gameType === 'tavla' ? 'bg-amber-600 border-amber-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'
+                  gameType === 'tavla' ? 'bg-amber-600 border-amber-400 text-white' : 'bg-[var(--color-surface-2)] border-[var(--color-border-strong)] text-[var(--color-text-muted)]'
                 }`}
               >
                 Tavla
@@ -100,28 +100,28 @@ export default function TV() {
 
           <div className="relative py-1">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-800"></div>
+              <div className="w-full border-t border-[var(--color-border)]"></div>
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="px-3 bg-slate-900 text-slate-500 uppercase tracking-widest font-semibold">Oder</span>
+              <span className="px-3 bg-[var(--color-surface)] text-[var(--color-text-muted)] uppercase tracking-widest font-semibold">Oder</span>
             </div>
           </div>
 
           {/* Join Existing Lobby */}
           <div className="space-y-3">
-            <label className="block text-xs font-bold uppercase text-slate-400">
+            <label className="block text-xs font-bold uppercase text-[var(--color-text-muted)]">
               2. Bestehender Lobby Beitreten
             </label>
             <input
               type="text"
               value={lobbyIdInput}
               onChange={(e) => setLobbyIdInput(e.target.value.toUpperCase())}
-              className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-center text-lg font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full px-4 py-3 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-mono text-center text-lg font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-red-500"
               placeholder="z.B. ABC123"
             />
             <button
               onClick={joinAsTV}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold border border-slate-700 transition"
+              className="w-full bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text)] py-3 rounded-xl font-bold border border-[var(--color-border-strong)] transition"
             >
               Lobby Öffnen
             </button>
@@ -137,29 +137,29 @@ export default function TV() {
     const maxRequired = lobby.gameType === 'tavla' ? 2 : 4;
 
     return (
-      <div className="min-h-screen bg-emerald-950 text-white flex flex-col items-center justify-between p-8 select-none font-sans">
+      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-between p-8 select-none font-sans">
         
         {/* Header */}
         <div className="text-center mt-4">
-          <div className="inline-flex items-center gap-2 bg-emerald-900/80 border border-emerald-700 px-5 py-1.5 rounded-full text-xs font-bold text-emerald-300 uppercase tracking-widest mb-2 shadow-lg">
-            <Tv className="w-4 h-4 text-amber-400" /> TV / GROSSBILDSCHIRM LOBBY
+          <div className="inline-flex items-center gap-2 bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] px-5 py-1.5 rounded-full text-xs font-bold text-[var(--color-accent)] uppercase tracking-widest mb-2 shadow-lg">
+            <Tv className="w-4 h-4 text-[var(--color-accent)]" /> TV / GROSSBILDSCHIRM LOBBY
           </div>
-          <h1 className="text-5xl sm:text-6xl font-black text-amber-400 tracking-tight mb-1">
+          <h1 className="text-5xl sm:text-6xl font-black text-[var(--color-accent)] tracking-tight mb-1">
             {lobby.gameType === 'tavla' ? 'Tavla (Backgammon)' : 'Okey Table'}
           </h1>
-          <p className="text-lg text-emerald-300">Scanne den QR-Code mit deinem Smartphone, um mitzuspielen</p>
+          <p className="text-lg text-[var(--color-text-muted)]">Scanne den QR-Code mit deinem Smartphone, um mitzuspielen</p>
         </div>
 
         {/* QR Code & Join Info */}
-        <div className="bg-slate-900/95 border-4 border-slate-800 p-8 rounded-3xl shadow-2xl flex items-center gap-10 max-w-2xl w-full my-auto">
+        <div className="bg-[var(--color-surface)] border-4 border-[var(--color-border)] p-8 rounded-3xl shadow-2xl flex items-center gap-10 max-w-2xl w-full my-auto">
           <div className="bg-white p-4 rounded-2xl shadow-xl flex-shrink-0">
             <QRCodeSVG value={joinUrl} size={200} />
           </div>
 
           <div className="flex flex-col gap-4 text-left flex-1">
-            <h2 className="text-2xl font-bold text-white">Jetzt Beitreten!</h2>
-            <p className="text-slate-400 text-sm">Öffne den Link auf deinem Handy oder scanne den QR-Code.</p>
-            <div className="bg-slate-800 px-5 py-3 rounded-2xl border border-slate-700 font-mono text-3xl font-black text-amber-400 inline-block shadow-inner">
+            <h2 className="text-2xl font-bold text-[var(--color-text)]">Jetzt Beitreten!</h2>
+            <p className="text-[var(--color-text-muted)] text-sm">Öffne den Link auf deinem Handy oder scanne den QR-Code.</p>
+            <div className="bg-[var(--color-surface-2)] px-5 py-3 rounded-2xl border border-[var(--color-border-strong)] font-mono text-3xl font-black text-[var(--color-accent)] inline-block shadow-inner">
               Code: {lobby.id}
             </div>
 
@@ -167,12 +167,12 @@ export default function TV() {
             <div className="pt-2 flex flex-col gap-2">
               <button
                 onClick={startGameFromTV}
-                className="w-full py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-black text-lg rounded-2xl shadow-2xl transition flex items-center justify-center gap-2 animate-bounce"
+                className="w-full py-4 bg-gradient-to-r from-[var(--color-cta-from)] to-[var(--color-cta-to)] hover:from-[var(--color-cta-hover-from)] hover:to-[var(--color-cta-hover-to)] text-white font-black text-lg rounded-2xl shadow-2xl transition flex items-center justify-center gap-2 animate-bounce"
               >
                 <Play className="w-6 h-6 fill-current" />
                 <span>Spiel Jetzt Starten</span>
               </button>
-              <p className="text-[11px] text-slate-400 text-center italic">
+              <p className="text-[11px] text-[var(--color-text-muted)] text-center italic">
                 Fehlende Plätze werden automatisch mit KI-Bots aufgefüllt!
               </p>
             </div>
@@ -182,16 +182,16 @@ export default function TV() {
         {/* Player slots */}
         <div className="w-full max-w-4xl mb-4">
           <div className="flex items-center justify-between mb-3 px-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-accent)]">
               Beigetretene Spieler ({lobby.players.length} / {maxRequired})
             </span>
 
             {lobby.players.length < maxRequired && (
               <button
                 onClick={addBot}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-950/80 hover:bg-amber-900 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/40 transition shadow"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-accent)] text-xs font-bold rounded-xl border border-[var(--color-border-strong)] transition shadow"
               >
-                <Bot className="w-4 h-4 text-amber-400" />
+                <Bot className="w-4 h-4 text-[var(--color-accent)]" />
                 <span>+ Bot Hinzufügen</span>
               </button>
             )}
@@ -201,24 +201,24 @@ export default function TV() {
             {lobby.players.map((p: any) => (
               <div
                 key={p.id}
-                className="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-center font-bold flex flex-col items-center justify-center gap-1 shadow-lg"
+                className="bg-[var(--color-surface)] border border-[var(--color-border)] p-4 rounded-2xl text-center font-bold flex flex-col items-center justify-center gap-1 shadow-lg"
               >
                 {p.isBot ? (
-                  <Bot className="w-7 h-7 text-amber-400 mb-1" />
+                  <Bot className="w-7 h-7 text-[var(--color-accent)] mb-1" />
                 ) : (
-                  <Users className="w-7 h-7 text-emerald-400 mb-1" />
+                  <Users className="w-7 h-7 text-[var(--color-accent)] mb-1" />
                 )}
-                <span className="text-sm font-bold text-white truncate max-w-full">{p.name}</span>
-                <span className="text-[10px] text-slate-500 font-mono">Elo: {p.elo || 1200}</span>
+                <span className="text-sm font-bold text-[var(--color-text)] truncate max-w-full">{p.name}</span>
+                <span className="text-[10px] text-[var(--color-text-muted)] font-mono">Elo: {p.elo || 1200}</span>
               </div>
             ))}
 
             {Array.from({ length: maxRequired - lobby.players.length }).map((_, idx) => (
               <div
                 key={idx}
-                className="bg-slate-900/40 border-2 border-dashed border-slate-800 p-4 rounded-2xl text-center text-slate-600 flex flex-col items-center justify-center gap-1"
+                className="bg-[var(--color-surface-2)] border-2 border-dashed border-[var(--color-border)] p-4 rounded-2xl text-center text-[var(--color-text-muted)] flex flex-col items-center justify-center gap-1"
               >
-                <Users className="w-7 h-7 text-slate-700 mb-1" />
+                <Users className="w-7 h-7 text-[var(--color-text-muted)] mb-1" />
                 <span className="text-xs font-semibold">Freier Platz</span>
               </div>
             ))}
@@ -234,13 +234,13 @@ export default function TV() {
     const logs = publicGameState.logs || [];
 
     return (
-      <div className="min-h-screen bg-slate-950 text-white p-6 flex flex-col justify-between select-none font-sans">
+      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] p-6 flex flex-col justify-between select-none font-sans">
         
         {/* TV Top Bar */}
-        <div className="flex items-center justify-between bg-slate-900 border border-slate-800 px-8 py-4 rounded-2xl shadow-xl">
+        <div className="flex items-center justify-between bg-[var(--color-surface)] border border-[var(--color-border)] px-8 py-4 rounded-2xl shadow-xl">
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
-            <h1 className="text-2xl font-black tracking-tight text-amber-400">
+            <h1 className="text-2xl font-black tracking-tight text-[var(--color-accent)]">
               {publicGameState.gameType === 'tavla' ? 'Tavla (Backgammon)' : 'Okey Table Live'}
             </h1>
           </div>
@@ -250,8 +250,8 @@ export default function TV() {
             <span>Am Zug: {currentPlayer?.name}</span>
           </div>
 
-          <div className="font-mono text-sm font-bold text-slate-400">
-            Lobby-Code: <span className="text-amber-400 font-black">{lobby.id}</span>
+          <div className="font-mono text-sm font-bold text-[var(--color-text-muted)]">
+            Lobby-Code: <span className="text-[var(--color-accent)] font-black">{lobby.id}</span>
           </div>
         </div>
 
@@ -263,21 +263,21 @@ export default function TV() {
             <div className="w-full max-w-6xl h-full min-h-[460px] bg-emerald-950/70 border-4 border-emerald-900/80 rounded-3xl p-8 relative flex flex-col items-center justify-center shadow-2xl">
               
               {/* Central Draw Pile & Gösterge */}
-              <div className="flex items-center gap-10 bg-slate-900/90 border border-slate-800 px-10 py-8 rounded-3xl shadow-2xl z-10">
+              <div className="flex items-center gap-10 bg-[var(--color-surface)] border border-[var(--color-border)] px-10 py-8 rounded-3xl shadow-2xl z-10">
                 
                 {/* Pile count */}
                 <div className="flex flex-col items-center">
                   <div className="w-24 h-32 bg-gradient-to-br from-amber-100 to-amber-200 text-amber-950 rounded-2xl shadow-xl border-4 border-amber-300 flex items-center justify-center font-black text-4xl">
                     {publicGameState.pileCount}
                   </div>
-                  <span className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-2">Rest-Stapel</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] mt-2">Rest-Stapel</span>
                 </div>
 
                 {/* Gösterge Indicator Tile */}
                 {publicGameState.indicator && (
-                  <div className="flex flex-col items-center border-l border-slate-800 pl-10">
+                  <div className="flex flex-col items-center border-l border-[var(--color-border)] pl-10">
                     <OkeyTile tile={publicGameState.indicator} size="lg" className="border-amber-400" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-amber-400 mt-2">Gösterge (Okey-Indikator)</span>
+                    <span className="text-xs font-bold uppercase tracking-widest text-[var(--color-accent)] mt-2">Gösterge (Okey-Indikator)</span>
                   </div>
                 )}
 
@@ -303,18 +303,18 @@ export default function TV() {
                     <div className={`px-5 py-2.5 rounded-2xl font-bold text-base transition-all flex items-center gap-2.5 shadow-xl ${
                       isTurn
                         ? 'bg-amber-400 text-amber-950 ring-4 ring-amber-400/50 scale-105'
-                        : 'bg-slate-900 text-white border border-slate-800'
+                        : 'bg-[var(--color-surface)] text-[var(--color-text)] border border-[var(--color-border)]'
                     }`}>
                       {p.isBot ? <Bot className="w-5 h-5 text-amber-950" /> : <Users className="w-5 h-5 text-emerald-400" />}
                       <span>{p.name}</span>
                     </div>
 
                     {/* Discard Pile Slot */}
-                    <div className="w-20 h-28 bg-slate-900/90 rounded-2xl border-2 border-slate-700/80 flex flex-col items-center justify-center relative shadow-xl">
+                    <div className="w-20 h-28 bg-[var(--color-surface)] rounded-2xl border-2 border-[var(--color-border-strong)] flex flex-col items-center justify-center relative shadow-xl">
                       {topDiscard ? (
                         <OkeyTile tile={topDiscard} size="lg" className="absolute inset-0 border-amber-300" />
                       ) : (
-                        <span className="text-[10px] text-slate-500 font-bold uppercase">Ablage</span>
+                        <span className="text-[10px] text-[var(--color-text-muted)] font-bold uppercase">Ablage</span>
                       )}
                     </div>
 
@@ -335,7 +335,7 @@ export default function TV() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-amber-400/80 italic text-lg">Warte auf Würfe...</div>
+                  <div className="text-[var(--color-accent)]/80 italic text-lg">Warte auf Würfe...</div>
                 )}
               </div>
             </div>
@@ -344,19 +344,19 @@ export default function TV() {
         </div>
 
         {/* Live Activity Ticker / Match Logs Footer */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-xl flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400 min-w-max border-r border-slate-800 pr-4">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] p-4 rounded-2xl shadow-xl flex items-center gap-4">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--color-accent)] min-w-max border-r border-[var(--color-border)] pr-4">
             <Activity className="w-4 h-4 text-emerald-400" /> Live Match Ticker
           </div>
 
           <div className="flex-1 overflow-hidden h-6">
             {logs.length > 0 ? (
-              <div className="flex items-center gap-3 text-sm font-semibold text-slate-200 animate-fade-in">
-                <span className="text-xs font-mono text-slate-500">[{logs[0].time}]</span>
+              <div className="flex items-center gap-3 text-sm font-semibold text-[var(--color-text)] animate-fade-in">
+                <span className="text-xs font-mono text-[var(--color-text-muted)]">[{logs[0].time}]</span>
                 <span>{logs[0].text}</span>
               </div>
             ) : (
-              <span className="text-xs text-slate-500 italic">Keine Aktionen bisher...</span>
+              <span className="text-xs text-[var(--color-text-muted)] italic">Keine Aktionen bisher...</span>
             )}
           </div>
         </div>
@@ -368,18 +368,18 @@ export default function TV() {
   // Finished Game Screen on TV
   if (lobby?.status === 'finished') {
     return (
-      <div className="min-h-screen bg-emerald-950 text-white flex flex-col items-center justify-center p-8 select-none font-sans">
-        <Trophy className="w-24 h-24 text-amber-400 mb-4 animate-bounce" />
-        <h1 className="text-6xl font-black text-amber-400 mb-8">Spiel Beendet!</h1>
-        <div className="bg-slate-900 border border-slate-800 text-white p-8 rounded-3xl shadow-2xl w-full max-w-lg">
-          <h2 className="text-2xl font-bold mb-6 border-b border-slate-800 pb-4">Endergebnis & Leaderboard</h2>
+      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-center p-8 select-none font-sans">
+        <Trophy className="w-24 h-24 text-[var(--color-accent)] mb-4 animate-bounce" />
+        <h1 className="text-6xl font-black text-[var(--color-accent)] mb-8">Spiel Beendet!</h1>
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] p-8 rounded-3xl shadow-2xl w-full max-w-lg">
+          <h2 className="text-2xl font-bold mb-6 border-b border-[var(--color-border)] pb-4">Endergebnis & Leaderboard</h2>
           <ul className="space-y-4">
             {lobby.players
               .sort((a: any, b: any) => b.score - a.score)
               .map((p: any, idx: number) => (
                 <li key={p.id} className="flex justify-between items-center text-xl">
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-amber-400">#{idx + 1}</span>
+                    <span className="font-bold text-[var(--color-accent)]">#{idx + 1}</span>
                     <span>{p.name}</span>
                   </div>
                   <span className="font-black text-emerald-400">{p.score} Pkt</span>

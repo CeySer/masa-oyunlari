@@ -1,1 +1,69 @@
 @import "tailwindcss";
+
+/* ============================================================
+   THEME SYSTEM
+   Three switchable palettes, selected via [data-theme] on <html>.
+   Components consume these through bg-[var(--...)] / text-[var(--...)]
+   utility classes rather than hardcoded Tailwind colors, so the whole
+   site (not just the game board) follows the chosen theme.
+   ============================================================ */
+
+:root,
+[data-theme='coffeehouse'] {
+  --color-bg: #1c140d;
+  --color-surface: #2a1d13;
+  --color-surface-2: #3a2a1a;
+  --color-surface-3: #4a3624;
+  --color-border: #4a3624;
+  --color-border-strong: #6b4f30;
+  --color-text: #f5ecd9;
+  --color-text-muted: #b8a58a;
+  --color-accent: #d4a24e;
+  --color-accent-strong: #e3b563;
+  --color-accent-contrast: #2a1d13;
+  --color-cta-from: #b3451f;
+  --color-cta-to: #8f3216;
+  --color-cta-hover-from: #c85427;
+  --color-cta-hover-to: #a33d1c;
+}
+
+[data-theme='modern-dark'] {
+  --color-bg: #0b1220;
+  --color-surface: #151f30;
+  --color-surface-2: #1f2c42;
+  --color-surface-3: #2c3b55;
+  --color-border: #263449;
+  --color-border-strong: #35455e;
+  --color-text: #eef2f7;
+  --color-text-muted: #8fa0b8;
+  --color-accent: #2dd4bf;
+  --color-accent-strong: #5eead4;
+  --color-accent-contrast: #042f2c;
+  --color-cta-from: #0d9488;
+  --color-cta-to: #0f766e;
+  --color-cta-hover-from: #14b8a6;
+  --color-cta-hover-to: #0d9488;
+}
+
+[data-theme='light'] {
+  --color-bg: #faf6ec;
+  --color-surface: #ffffff;
+  --color-surface-2: #f2ede0;
+  --color-surface-3: #e7dfcc;
+  --color-border: #e3dac2;
+  --color-border-strong: #cdbf9c;
+  --color-text: #2b2118;
+  --color-text-muted: #6b6154;
+  --color-accent: #c8622a;
+  --color-accent-strong: #b8541a;
+  --color-accent-contrast: #ffffff;
+  --color-cta-from: #d2691e;
+  --color-cta-to: #b8541a;
+  --color-cta-hover-from: #e07a2e;
+  --color-cta-hover-to: #c8622a;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}

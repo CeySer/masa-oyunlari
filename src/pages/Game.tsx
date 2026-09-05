@@ -34,13 +34,13 @@ export default function Game() {
 
   if (!lobby || !publicGameState) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-center p-4">
         <div className="animate-pulse text-center space-y-3">
           <div className="text-xl font-bold">Spielstand wird geladen...</div>
-          <p className="text-xs text-slate-400">Verbindung zur Lobby {id} wird aufgebaut</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Verbindung zur Lobby {id} wird aufgebaut</p>
           <button
             onClick={() => navigate('/')}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl border border-slate-700 transition"
+            className="px-4 py-2 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-xs font-semibold rounded-xl border border-[var(--color-border-strong)] transition"
           >
             Zurück zum Hauptmenü
           </button>
@@ -55,8 +55,8 @@ export default function Game() {
   if (lobby.status === 'finished') {
     const iWon = gameResult?.winner?.id === socket?.id;
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 select-none text-center">
-        <Trophy className={`w-20 h-20 mb-4 ${iWon ? 'text-amber-400 animate-bounce' : 'text-slate-600'}`} />
+      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-center p-6 select-none text-center">
+        <Trophy className={`w-20 h-20 mb-4 ${iWon ? 'text-[var(--color-accent)] animate-bounce' : 'text-[var(--color-text-muted)]'}`} />
         <h1 className="text-3xl sm:text-4xl font-black mb-2">
           {gameResult?.winner
             ? iWon
@@ -65,17 +65,17 @@ export default function Game() {
             : 'Unentschieden'}
         </h1>
         {gameResult?.reason === 'pile_empty' && (
-          <p className="text-slate-400 text-sm mb-6">Der Nachziehstapel ist leer - niemand konnte Okey ausrufen.</p>
+          <p className="text-[var(--color-text-muted)] text-sm mb-6">Der Nachziehstapel ist leer - niemand konnte Okey ausrufen.</p>
         )}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-sm mt-4 shadow-2xl">
-          <h2 className="text-sm font-bold text-slate-400 mb-4 uppercase tracking-wide">Punktestand</h2>
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 w-full max-w-sm mt-4 shadow-2xl">
+          <h2 className="text-sm font-bold text-[var(--color-text-muted)] mb-4 uppercase tracking-wide">Punktestand</h2>
           <ul className="space-y-2">
             {[...lobby.players]
               .sort((a: any, b: any) => b.score - a.score)
               .map((p: any) => (
                 <li key={p.id} className="flex justify-between items-center text-sm">
                   <span className="flex items-center gap-1.5">
-                    {p.isBot && <Bot className="w-3.5 h-3.5 text-slate-500" />}
+                    {p.isBot && <Bot className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />}
                     {p.name}
                   </span>
                   <span className="font-black text-emerald-400">{p.score} Pkt</span>
@@ -86,14 +86,14 @@ export default function Game() {
         <div className="flex gap-3 mt-6">
           <button
             onClick={handleBackToLobby}
-            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold text-sm rounded-xl transition flex items-center gap-2"
+            className="px-5 py-2.5 bg-[var(--color-accent)] hover:bg-[var(--color-accent-strong)] text-[var(--color-accent-contrast)] font-bold text-sm rounded-xl transition flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
             Zurück zur Lobby
           </button>
           <button
             onClick={() => navigate('/')}
-            className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition"
+            className="px-5 py-2.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-semibold text-sm rounded-xl transition"
           >
             Hauptmenü
           </button>
@@ -103,18 +103,18 @@ export default function Game() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-2 sm:p-4 select-none">
+    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col justify-between p-2 sm:p-4 select-none">
       
       {/* Top Header */}
-      <header className="flex items-center justify-between pb-2 border-b border-slate-800/90 mb-2">
+      <header className="flex items-center justify-between pb-2 border-b border-[var(--color-border)] mb-2">
         <div className="flex items-center gap-2">
           {/* Back to Lobby Button */}
           <button
             onClick={handleBackToLobby}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold rounded-xl transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] text-xs font-bold rounded-xl transition"
             title="Zurück zur Lobby"
           >
-            <ArrowLeft className="w-4 h-4 text-slate-400" />
+            <ArrowLeft className="w-4 h-4 text-[var(--color-text-muted)]" />
             <span className="hidden sm:inline">Lobby</span>
           </button>
 
@@ -132,12 +132,12 @@ export default function Game() {
         {/* Turn Status Banner */}
         <div className="flex items-center gap-2">
           {isMyTurn ? (
-            <div className="px-3.5 py-1 bg-amber-400 text-amber-950 font-black rounded-full text-xs shadow-lg shadow-amber-950/50 animate-pulse">
+            <div className="px-3.5 py-1 bg-[var(--color-accent)] text-[var(--color-accent-contrast)] font-black rounded-full text-xs shadow-lg animate-pulse">
               ★ DU BIST AM ZUG ★
             </div>
           ) : (
-            <div className="px-3 py-1 bg-slate-800 text-slate-300 font-semibold rounded-full text-xs flex items-center gap-1.5 border border-slate-700">
-              {currentPlayer?.isBot && <Bot className="w-3.5 h-3.5 text-amber-400" />}
+            <div className="px-3 py-1 bg-[var(--color-surface-2)] text-[var(--color-text)] font-semibold rounded-full text-xs flex items-center gap-1.5 border border-[var(--color-border-strong)]">
+              {currentPlayer?.isBot && <Bot className="w-3.5 h-3.5 text-[var(--color-accent)]" />}
               <span>Am Zug: {currentPlayer?.name}</span>
             </div>
           )}
@@ -145,9 +145,9 @@ export default function Game() {
 
         <button
           onClick={() => setShowTVOverlay(!showTVOverlay)}
-          className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold rounded-xl border border-slate-700"
+          className="flex items-center gap-1 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-xs text-[var(--color-text)] font-semibold rounded-xl border border-[var(--color-border-strong)]"
         >
-          <Tv className="w-3.5 h-3.5 text-slate-400" />
+          <Tv className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
           <span className="hidden sm:inline">{showTVOverlay ? 'Hand' : 'TV-Brett'}</span>
         </button>
       </header>
@@ -170,7 +170,7 @@ export default function Game() {
                   }`}
                 >
                   <div className="font-bold text-sm text-white flex items-center gap-2">
-                    {p.isBot && <Bot className="w-4 h-4 text-amber-400" />}
+                    {p.isBot && <Bot className="w-4 h-4 text-[var(--color-accent)]" />}
                     <span>{p.name}</span>
                   </div>
                   <div className="text-xs text-emerald-300 mt-1">Punkte: {p.score}</div>
@@ -179,7 +179,7 @@ export default function Game() {
             </div>
             <button
               onClick={() => setShowTVOverlay(false)}
-              className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-semibold text-xs border border-slate-700 mx-auto"
+              className="px-6 py-2.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text)] rounded-xl font-semibold text-xs border border-[var(--color-border-strong)] mx-auto"
             >
               Zurück zu meiner Hand
             </button>
