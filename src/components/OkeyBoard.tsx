@@ -123,7 +123,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       setSelectedSlotIndex(null);
     } else {
       swapSlots(selectedSlotIndex, slotIdx);
-      setSelectedSlotIndex(slotIdx);
+      setSelectedSlotIndex(null);
     }
   };
 
@@ -152,7 +152,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       const sourceSlotIdx = parseInt(sourceIdxStr, 10);
       if (!isNaN(sourceSlotIdx) && sourceSlotIdx !== targetSlotIdx) {
         swapSlots(sourceSlotIdx, targetSlotIdx);
-        setSelectedSlotIndex(targetSlotIdx);
+        setSelectedSlotIndex(null);
       }
     }
   };
@@ -178,7 +178,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     const startIdx = touchStartSlotRef.current;
     if (startIdx !== null && startIdx !== targetSlotIdx) {
       swapSlots(startIdx, targetSlotIdx);
-      setSelectedSlotIndex(targetSlotIdx);
+      setSelectedSlotIndex(null);
     }
     touchStartSlotRef.current = null;
   };
