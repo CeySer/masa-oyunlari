@@ -3,7 +3,7 @@ import { Palette } from 'lucide-react';
 import { THEMES, applyTheme, getStoredTheme, type ThemeId } from '../lib/theme';
 
 export default function ThemeSwitcher() {
-  const [theme, setTheme] = useState<ThemeId>('coffeehouse');
+  const [theme, setTheme] = useState<ThemeId>('light');
   const [open, setOpen] = useState(false);
 
   useEffect(() => {

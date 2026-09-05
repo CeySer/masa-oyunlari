@@ -76,7 +76,8 @@ export default function Game() {
   if (lobby.status === 'finished') {
     const iWon = gameResult?.winner?.id === socket?.id;
     const isOkey = lobby.gameType === 'okey';
-    const matchOver = isOkey && gameResult?.matchOver;
+    const scoringEnabled = lobby.scoringEnabled !== false;
+    const matchOver = isOkey && scoringEnabled && gameResult?.matchOver;
     const winTypeLabel =
       gameResult?.winType === 'pairs' ? ' mit 7 Paaren' : gameResult?.pointsLost === 4 ? ' durch Abwerfen des Okey-Steins' : '';
     return (
@@ -92,7 +93,7 @@ export default function Game() {
         {gameResult?.reason === 'pile_empty' && (
           <p className="text-[var(--color-text-muted)] text-sm mb-6">Der Nachziehstapel ist leer - niemand konnte Okey ausrufen.</p>
         )}
-        {isOkey && gameResult?.winner && !gameResult?.reason && (
+        {isOkey && scoringEnabled && gameResult?.winner && !gameResult?.reason && (
           <p className="text-[var(--color-text-muted)] text-sm mb-6">
             Gewonnen{winTypeLabel} - jeder andere Spieler verliert {gameResult.pointsLost} Punkte.
           </p>
@@ -102,23 +103,25 @@ export default function Game() {
             Match beendet! Sieger: {gameResult.matchWinners.map((p) => p.name).join(' & ')}
           </p>
         )}
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 w-full max-w-sm mt-4 shadow-2xl">
-          <h2 className="text-sm font-bold text-[var(--color-text-muted)] mb-4 uppercase tracking-wide">Punktestand</h2>
-          <ul className="space-y-2">
-            {[...lobby.players]
-              .sort((a: any, b: any) => b.score - a.score)
-              .map((p: any) => (
-                <li key={p.id} className="flex justify-between items-center text-sm">
-                  <span className="flex items-center gap-1.5">
-                    {p.isBot && <Bot className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />}
-                    {p.name}
-                    {p.score <= 0 && <span className="text-[10px] text-red-400 font-bold">(raus)</span>}
-                  </span>
-                  <span className="font-black text-emerald-400">{p.score} Pkt</span>
-                </li>
-              ))}
-          </ul>
-        </div>
+        {scoringEnabled && (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 w-full max-w-sm mt-4 shadow-2xl">
+            <h2 className="text-sm font-bold text-[var(--color-text-muted)] mb-4 uppercase tracking-wide">Punktestand</h2>
+            <ul className="space-y-2">
+              {[...lobby.players]
+                .sort((a: any, b: any) => b.score - a.score)
+                .map((p: any) => (
+                  <li key={p.id} className="flex justify-between items-center text-sm">
+                    <span className="flex items-center gap-1.5">
+                      {p.isBot && <Bot className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />}
+                      {p.name}
+                      {p.score <= 0 && <span className="text-[10px] text-red-400 font-bold">(raus)</span>}
+                    </span>
+                    <span className="font-black text-emerald-400">{p.score} Pkt</span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
         <div className="flex gap-3 mt-6 flex-wrap justify-center">
           {isOkey && !matchOver && (
             <button

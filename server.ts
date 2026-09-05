@@ -130,6 +130,11 @@ interface Player {
 
 const OKEY_STARTING_SCORE = 20;
 
+// How long a disconnected player's seat is held open before a bot takes
+// over. Long enough to survive a backgrounded tab or a brief WiFi drop,
+// short enough that a genuinely gone player doesn't stall everyone else.
+const RECONNECT_GRACE_MS = 20000;
+
 interface Lobby {
   id: string;
   host: string;
@@ -144,6 +149,12 @@ interface Lobby {
   // whole multi-hand match is over then (not just the current hand), and
   // 'next_round' refuses to deal again. See declare_win.
   matchOver?: boolean;
+  // Okey only: whether the traditional 20-point match scoring applies at
+  // all. When false (a casual "just play hands" lobby, chosen at creation),
+  // winning a hand never costs anyone points and the match never ends on
+  // its own - every hand just leads straight into "Nächste Runde". Defaults
+  // to true when absent (older lobbies, and Tavla where this doesn't apply).
+  scoringEnabled?: boolean;
   // The Firebase uid that created this lobby (when authRequired) - lets
   // other profiles under the SAME account discover an open lobby without
   // needing the code/link (see broadcastAccountLobbyStatus/subscribe_account).
@@ -865,8 +876,16 @@ io.on('connection', (socket) => {
     io.to(lobbyId).emit('lobby_updated', lobby);
   });
 
-  socket.on('create_lobby', async ({ gameType, name, idToken, profileId }, callback) => {
+  socket.on('create_lobby', async ({ gameType, name, idToken, profileId, scoringEnabled }, callback) => {
     const type = gameType === 'tavla' ? 'tavla' : 'okey';
+
+    // Tavla still has too many open bugs to expose right now - keep it
+    // switched off server-side too, not just hidden in the UI, so a stale
+    // client or a direct API call can't start one either.
+    if (type === 'tavla') {
+      if (callback) callback({ success: false, error: 'Tavla ist vorübergehend deaktiviert, während wir Okey fertigstellen.' });
+      return;
+    }
 
     let profile: PlayerProfile | null = null;
     let playerName = name || 'Host';
@@ -896,6 +915,7 @@ io.on('connection', (socket) => {
     const lobby = lobbies.get(lobbyId)!;
     lobby.authRequired = firebaseAdminEnabled;
     lobby.ownerUid = ownerUid;
+    lobby.scoringEnabled = scoringEnabled !== false; // default on
 
     // Auto-join host as player 1
     const hostPlayer: Player = {
@@ -987,7 +1007,32 @@ io.on('connection', (socket) => {
       // since the socket id changes on every reconnect)
       let existingPlayer = lobby.players.find(p => (profile && p.profileId === profile.id) || p.id === socket.id || p.name === playerName);
       if (existingPlayer) {
+        const oldId = existingPlayer.id;
         existingPlayer.id = socket.id; // update socket id
+        if (oldId !== socket.id) {
+          // Reconnecting (tab switched away and back, dropped WiFi, etc.)
+          // gets a brand-new socket.id. Several per-player bits of live game
+          // state are keyed by that id - if we don't rekey them too, the
+          // reconnecting player's hand/discards/checker-color silently
+          // vanish even though the player object itself is fine. This was a
+          // real reported bug ("alle meine Steine weg" after switching tabs).
+          if (lobby.host === oldId) lobby.host = socket.id;
+          const gs = lobby.gameState;
+          if (gs) {
+            if (gs.hands && oldId in gs.hands) {
+              gs.hands[socket.id] = gs.hands[oldId];
+              delete gs.hands[oldId];
+            }
+            if (gs.discardPiles && oldId in gs.discardPiles) {
+              gs.discardPiles[socket.id] = gs.discardPiles[oldId];
+              delete gs.discardPiles[oldId];
+            }
+            if (gs.playerColors && oldId in gs.playerColors) {
+              gs.playerColors[socket.id] = gs.playerColors[oldId];
+              delete gs.playerColors[oldId];
+            }
+          }
+        }
       } else {
         if (lobby.players.length >= (lobby.gameType === 'tavla' ? 2 : 4)) {
           if (callback) callback({ success: false, error: 'Lobby ist voll!' });
@@ -1210,17 +1255,24 @@ io.on('connection', (socket) => {
     // Traditional Okey scoring: the winner's own score never moves - only
     // the OTHER players lose points. An ordinary sets/runs win costs each
     // loser 2 points; winning with seven pairs, or by discarding the joker
-    // itself (a much harder way to go out), costs each loser 4.
+    // itself (a much harder way to go out), costs each loser 4. A lobby
+    // created with scoring switched off skips all of this - every hand is
+    // its own casual round, nobody's score changes, and the match never
+    // ends on its own.
     const jokerDiscardWin = isJokerTile(winningDiscard, gs.indicator);
-    const pointsLost = winType === 'pairs' || jokerDiscardWin ? 4 : 2;
-    lobby.players.forEach(p => {
-      if (p.id !== winner.id) p.score -= pointsLost;
-    });
+    const scoringOn = lobby.scoringEnabled !== false;
+    const pointsLost = scoringOn ? (winType === 'pairs' || jokerDiscardWin ? 4 : 2) : 0;
+    if (scoringOn) {
+      lobby.players.forEach(p => {
+        if (p.id !== winner.id) p.score -= pointsLost;
+      });
+    }
 
     // The match (this whole run of hands, not just this one) ends once
     // somebody's score drops to zero or below - then the two players left
-    // with the most points are the overall winners.
-    const matchOver = lobby.players.some(p => p.score <= 0);
+    // with the most points are the overall winners. Never applies when
+    // scoring is off.
+    const matchOver = scoringOn && lobby.players.some(p => p.score <= 0);
     lobby.matchOver = matchOver;
     const matchWinners = matchOver
       ? [...lobby.players].sort((a, b) => b.score - a.score).slice(0, 2)
@@ -1228,7 +1280,12 @@ io.on('connection', (socket) => {
 
     lobby.status = 'finished';
     const winLabel = winType === 'pairs' ? 'mit 7 Paaren' : jokerDiscardWin ? 'durch Abwerfen des Okey-Steins' : '';
-    addLog(lobby, `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - jeder andere verliert ${pointsLost} Punkte!`);
+    addLog(
+      lobby,
+      scoringOn
+        ? `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - jeder andere verliert ${pointsLost} Punkte!`
+        : `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''}!`
+    );
 
     // Update the persistent leaderboard - only for players with a real
     // profile. Bots and anonymous solo-test players never appear on the
@@ -1321,17 +1378,33 @@ io.on('connection', (socket) => {
       if (playerIdx !== -1) {
         const player = lobby.players[playerIdx];
         if (!player.isBot && lobby.status === 'playing') {
-          player.isBot = true;
-          if (!player.name.includes('(Bot)')) {
-            player.name = `${player.name} (Bot)`;
-          }
-          addLog(lobby, `⚡ ${player.name} hat die Verbindung getrennt. Bot übernimmt!`);
-          broadcastGameState(lobby);
-          io.to(lobby.id).emit('lobby_updated', lobby);
+          // Don't hand the seat to a bot immediately - a backgrounded tab or
+          // a brief WiFi drop disconnects the socket too, and the client
+          // reconnects with a brand-new socket.id moments later (see
+          // join_lobby's reconnect-rekeying above). Give it a grace period:
+          // if `player.id` still equals THIS (now stale) socket.id when the
+          // timer fires, nobody rekeyed it in the meantime, meaning the
+          // player really didn't come back - only then do we convert to a
+          // bot. A real reconnect naturally cancels this by updating
+          // player.id to the new socket, so the check below just fails.
+          const disconnectedSocketId = socket.id;
+          setTimeout(() => {
+            const stillIdx = lobby.players.findIndex(p => p.id === disconnectedSocketId);
+            if (stillIdx === -1) return; // reconnected (rekeyed) or left already
+            const stillPlayer = lobby.players[stillIdx];
+            if (stillPlayer.isBot || lobby.status !== 'playing') return;
+            stillPlayer.isBot = true;
+            if (!stillPlayer.name.includes('(Bot)')) {
+              stillPlayer.name = `${stillPlayer.name} (Bot)`;
+            }
+            addLog(lobby, `⚡ ${stillPlayer.name} hat die Verbindung getrennt. Bot übernimmt!`);
+            broadcastGameState(lobby);
+            io.to(lobby.id).emit('lobby_updated', lobby);
 
-          if (lobby.gameState && lobby.gameState.turnIndex === playerIdx) {
-            checkAndTriggerBotTurn(lobby);
-          }
+            if (lobby.gameState && lobby.gameState.turnIndex === stillIdx) {
+              checkAndTriggerBotTurn(lobby);
+            }
+          }, RECONNECT_GRACE_MS);
         }
       }
     });
