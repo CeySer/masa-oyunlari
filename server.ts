@@ -1044,6 +1044,7 @@ io.on('connection', (socket) => {
       // No tiles left anywhere to draw - the round ends in a draw (no winner).
       addLog(lobby, `⚠️ Der Stapel ist leer. Runde endet unentschieden.`);
       lobby.status = 'finished';
+      io.to(lobbyId).emit('lobby_updated', lobby);
       io.to(lobbyId).emit('game_ended', { winner: null, players: lobby.players, reason: 'pile_empty' });
     }
   });
@@ -1112,6 +1113,12 @@ io.on('connection', (socket) => {
       }
     });
 
+    // The client's "Punktestand" screen reads scores off its locally-held
+    // `lobby.players` (kept in sync only via 'lobby_updated'), not off the
+    // `players` sent alongside 'game_ended' - without this, winner.score
+    // was mutated on the server but the client never learned about it and
+    // showed everyone stuck at 0.
+    io.to(lobbyId).emit('lobby_updated', lobby);
     io.to(lobbyId).emit('game_ended', { winner, players: lobby.players });
     io.emit('leaderboard_updated', Object.values(globalLeaderboard));
   });

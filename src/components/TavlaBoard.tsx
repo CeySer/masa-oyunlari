@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
+import { useUIStore } from '../store/uiStore';
 import { Dices, RefreshCw } from 'lucide-react';
 
 interface TavlaBoardProps {
@@ -8,14 +9,15 @@ interface TavlaBoardProps {
 
 export default function TavlaBoard({ lobbyId }: TavlaBoardProps) {
   const { socket, lobby, publicGameState, moveRejectedMessage, clearMoveRejectedMessage } = useGameStore();
+  const showToast = useUIStore((s) => s.showToast);
   const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
 
   useEffect(() => {
     if (moveRejectedMessage) {
-      alert(moveRejectedMessage);
+      showToast(moveRejectedMessage);
       clearMoveRejectedMessage();
     }
-  }, [moveRejectedMessage, clearMoveRejectedMessage]);
+  }, [moveRejectedMessage, clearMoveRejectedMessage, showToast]);
 
   if (!publicGameState || !lobby) return null;
 

@@ -20,7 +20,10 @@ export default function Login() {
           onClick={() => navigate('/')}
           className="flex items-center gap-2"
         >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-amber-600 flex items-center justify-center font-black text-sm text-white">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm text-white"
+            style={{ background: 'linear-gradient(145deg, var(--color-cta-from), var(--color-cta-to))' }}
+          >
             M
           </div>
           <span className="font-black text-sm">Masa Oyunları</span>

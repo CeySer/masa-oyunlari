@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore, type PlayerProfile } from '../store/profileStore';
+import { useUIStore } from '../store/uiStore';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import { Plus, Pencil, Trash2, LogOut, X } from 'lucide-react';
 
@@ -14,6 +15,7 @@ export default function Profiles() {
   const { user, authReady, logout } = useAuthStore();
   const { profiles, profilesLoading, profilesError, loadProfiles, createProfile, updateProfile, deleteProfile, selectProfile } =
     useProfileStore();
+  const showConfirm = useUIStore((s) => s.showConfirm);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -67,7 +69,11 @@ export default function Profiles() {
 
   const handleDelete = async (p: PlayerProfile, e: MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`"${p.name}" wirklich löschen? Die Statistik dieses Profils geht dabei verloren.`)) return;
+    const ok = await showConfirm(`"${p.name}" wirklich löschen? Die Statistik dieses Profils geht dabei verloren.`, {
+      confirmLabel: 'Löschen',
+      danger: true,
+    });
+    if (!ok) return;
     await deleteProfile(p.id);
   };
 

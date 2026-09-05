@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
+import { useUIStore } from '../store/uiStore';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { QRCodeSVG } from 'qrcode.react';
 import { Users, Play, Bot, UserPlus, Copy, Check, Tv, ArrowLeft, Trash2 } from 'lucide-react';
@@ -14,6 +15,7 @@ export default function Lobby() {
   const { socket, lobby, setPlayer, player } = useGameStore();
   const { user, authReady, getIdToken } = useAuthStore();
   const { activeProfile, profilesReady } = useProfileStore();
+  const showToast = useUIStore((s) => s.showToast);
   const [name, setName] = useState(localStorage.getItem('playerName') || '');
   const [copied, setCopied] = useState(false);
 
@@ -32,7 +34,7 @@ export default function Lobby() {
         } else if (res.error === 'invalid_profile') {
           navigate('/profiles', { state: { from: `/lobby/${id}` } });
         } else if (res.error) {
-          alert(res.error);
+          showToast(res.error);
           navigate('/');
         }
       }
@@ -56,14 +58,14 @@ export default function Lobby() {
   }, [lobby?.status, navigate, id]);
 
   const joinLobby = () => {
-    if (!name.trim()) return alert('Bitte gib deinen Namen ein');
+    if (!name.trim()) return showToast('Bitte gib deinen Namen ein');
     localStorage.setItem('playerName', name);
 
     socket?.emit('join_lobby', { lobbyId: id, name, role: 'player' }, (res: any) => {
       if (res.success) {
         setPlayer(res.player);
       } else {
-        alert(res.error || 'Fehler beim Beitritt');
+        showToast(res.error || 'Fehler beim Beitritt');
         navigate('/');
       }
     });
@@ -72,7 +74,7 @@ export default function Lobby() {
   const addBot = () => {
     socket?.emit('add_bot', { lobbyId: id }, (res: any) => {
       if (!res.success) {
-        alert(res.error);
+        showToast(res.error);
       }
     });
   };

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
+import { useUIStore } from '../store/uiStore';
 import { Play, Tv, Trophy, Bot, Dices, Layers, LogOut, MailWarning, Pencil } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import { isFirebaseConfigured } from '../lib/firebase';
@@ -17,6 +18,7 @@ export default function Home() {
   const { socket, leaderboard } = useGameStore();
   const { user, logout, getIdToken, resendVerificationEmail, authNotice } = useAuthStore();
   const { activeProfile } = useProfileStore();
+  const showToast = useUIStore((s) => s.showToast);
   // Manual name field is only used as a dev/local fallback when no Firebase
   // project is configured at all - with accounts enabled, the active player
   // profile's name is always used instead.
@@ -69,7 +71,7 @@ export default function Home() {
             navigate(`/lobby/${res.lobbyId}`);
           }
         } else {
-          alert(res.error || 'Lobby konnte nicht erstellt werden.');
+          showToast(res.error || 'Lobby konnte nicht erstellt werden.');
         }
       }
     );
@@ -85,10 +87,10 @@ export default function Home() {
       }}
     >
       {/* Top Bar */}
-      <header className="max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
-        <button onClick={() => navigate('/')} className="flex items-center gap-3 text-left">
+      <header className="max-w-4xl w-full mx-auto flex items-center justify-between flex-wrap gap-y-2 py-4 border-b border-[var(--color-border)]">
+        <button onClick={() => navigate('/')} className="flex items-center gap-3 text-left min-w-0">
           <div
-            className="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xl text-white"
+            className="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xl text-white flex-shrink-0"
             style={{
               background: 'linear-gradient(145deg, var(--color-cta-from), var(--color-cta-to))',
               boxShadow:
@@ -97,9 +99,9 @@ export default function Home() {
           >
             M
           </div>
-          <div>
-            <h1 className="text-xl font-black tracking-tight leading-tight">Masa Oyunları</h1>
-            <p className="text-xs text-[var(--color-text-muted)]">Klasik Türk Oyun Platformu</p>
+          <div className="min-w-0">
+            <h1 className="text-xl font-black tracking-tight leading-tight truncate">Masa Oyunları</h1>
+            <p className="text-xs text-[var(--color-text-muted)] truncate">Klasik Türk Oyun Platformu</p>
           </div>
         </button>
 
@@ -336,7 +338,7 @@ export default function Home() {
                   }}
                 >
                   <Bot className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <span>Sofort-Test mit KI-Bots (Singleplayer)</span>
+                  <span>Solo gegen Computer spielen</span>
                 </button>
               </div>
 

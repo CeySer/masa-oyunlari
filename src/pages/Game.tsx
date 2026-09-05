@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
+import { useUIStore } from '../store/uiStore';
 import { isFirebaseConfigured } from '../lib/firebase';
 import OkeyBoard from '../components/OkeyBoard';
 import TavlaBoard from '../components/TavlaBoard';
@@ -14,6 +15,7 @@ export default function Game() {
   const { socket, lobby, publicGameState, player, gameResult, clearGameResult } = useGameStore();
   const { authReady, getIdToken } = useAuthStore();
   const { activeProfile, profilesReady } = useProfileStore();
+  const showConfirm = useUIStore((s) => s.showConfirm);
   const [showTVOverlay, setShowTVOverlay] = useState(false);
 
   useEffect(() => {
@@ -29,8 +31,12 @@ export default function Game() {
     }
   }, [socket, id, player, authReady, profilesReady, activeProfile]);
 
-  const handleLeaveGame = () => {
-    if (confirm('Möchtest du das Spiel wirklich verlassen? Ein Bot wird deinen Platz übernehmen.')) {
+  const handleLeaveGame = async () => {
+    const ok = await showConfirm('Möchtest du das Spiel wirklich verlassen? Ein Bot wird deinen Platz übernehmen.', {
+      confirmLabel: 'Verlassen',
+      danger: true,
+    });
+    if (ok) {
       socket?.emit('leave_game', { lobbyId: id });
       navigate('/');
     }

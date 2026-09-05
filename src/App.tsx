@@ -11,6 +11,8 @@ import Game from './pages/Game';
 import TV from './pages/TV';
 import Login from './pages/Login';
 import Profiles from './pages/Profiles';
+import ToastHost from './components/ToastHost';
+import ConfirmHost from './components/ConfirmHost';
 import { useEffect } from 'react';
 import { useGameStore } from './store/gameStore';
 import { useAuthStore } from './store/authStore';
@@ -130,6 +132,8 @@ export default function App() {
           />
           <Route path="/tv/:id?" element={<TV />} />
         </Routes>
+        <ToastHost />
+        <ConfirmHost />
       </div>
     </BrowserRouter>
   );

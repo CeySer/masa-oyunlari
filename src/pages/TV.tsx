@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
+import { useUIStore } from '../store/uiStore';
 import { QRCodeSVG } from 'qrcode.react';
 import { Tv, Trophy, Bot, Users, Sparkles, Activity, Play, PlusCircle } from 'lucide-react';
 import { OkeyTile } from '../components/OkeyTile';
@@ -9,6 +10,7 @@ export default function TV() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { socket, lobby, publicGameState } = useGameStore();
+  const showToast = useUIStore((s) => s.showToast);
   const [lobbyIdInput, setLobbyIdInput] = useState(id || '');
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
   const [connected, setConnected] = useState(false);
@@ -30,7 +32,7 @@ export default function TV() {
         setConnected(true);
         if (!id) navigate(`/tv/${lobbyIdInput.toUpperCase()}`, { replace: true });
       } else {
-        alert(res.error || 'Lobby nicht gefunden!');
+        showToast(res.error || 'Lobby nicht gefunden!');
       }
     });
   };

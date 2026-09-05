@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type DragEvent } from 'react';
 import { useGameStore } from '../store/gameStore';
+import { useUIStore } from '../store/uiStore';
 import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 
@@ -17,6 +18,7 @@ const TOTAL_SLOTS = 30; // 2 rows of 15 slots
 
 export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   const { socket, lobby, hand, publicGameState, winRejectedMessage, clearWinRejectedMessage } = useGameStore();
+  const showToast = useUIStore((s) => s.showToast);
   const [rackSlots, setRackSlots] = useState<(Tile | null)[]>(Array(TOTAL_SLOTS).fill(null));
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
 
@@ -78,16 +80,16 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     if (hand.length === 15 && isMyTurn) {
       socket?.emit('declare_win', { lobbyId });
     } else {
-      alert('Du benötigst 15 Steine (nach dem Ziehen), um das Spiel zu beenden!');
+      showToast('Du benötigst 15 Steine (nach dem Ziehen), um das Spiel zu beenden!');
     }
   };
 
   useEffect(() => {
     if (winRejectedMessage) {
-      alert(winRejectedMessage);
+      showToast(winRejectedMessage);
       clearWinRejectedMessage();
     }
-  }, [winRejectedMessage, clearWinRejectedMessage]);
+  }, [winRejectedMessage, clearWinRejectedMessage, showToast]);
 
   // Swap slots (Works anytime!)
   const swapSlots = (fromIdx: number, toIdx: number) => {
