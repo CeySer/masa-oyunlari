@@ -299,23 +299,37 @@ function canFormGroups(tiles: OkeyTile[], jokerCount: number): boolean {
     }
 
     // Try forming a run (consecutive values, same color) that contains the first tile.
+    // A run's positions are 1-13, except the "1" tile may also stand for the
+    // single position right above 13 (so yellow 11-12-13-1 is a valid run) -
+    // but it never wraps further (13-1-2 is not valid). A position of 14
+    // matches a tile whose printed value is 1; every other position matches
+    // its own printed value.
     const sameColor = tiles.filter(t => t.color === first.color);
-    for (let size = 3; size <= 4; size++) {
-      // Try every window of length `size` that includes first.value.
-      for (let start = first.value - size + 1; start <= first.value; start++) {
-        const end = start + size - 1;
-        if (start < 1 || end > 13) continue;
+    const matchAt = (pos: number, used: Set<number>) =>
+      sameColor.find(t => t.value === (pos === 14 ? 1 : pos) && !used.has(t.id));
 
-        let jokersNeeded = 0;
-        const used = new Set<number>();
-        for (let v = start; v <= end; v++) {
-          const match = sameColor.find(t => t.value === v && !used.has(t.id));
-          if (match) used.add(match.id);
-          else jokersNeeded++;
-        }
-        if (jokersNeeded <= jokerCount) {
-          const remaining = tiles.filter(t => !used.has(t.id));
-          if (canFormGroups(remaining, jokerCount - jokersNeeded)) return true;
+    // The anchor tile can represent its own value, and - only when it's a 1 -
+    // can also represent the extended top position (14).
+    const effectiveValues = first.value === 1 ? [1, 14] : [first.value];
+
+    for (const anchorValue of effectiveValues) {
+      for (let size = 3; size <= 4; size++) {
+        // Try every window of length `size` that includes anchorValue.
+        for (let start = anchorValue - size + 1; start <= anchorValue; start++) {
+          const end = start + size - 1;
+          if (start < 1 || end > 14) continue;
+
+          let jokersNeeded = 0;
+          const used = new Set<number>();
+          for (let pos = start; pos <= end; pos++) {
+            const match = matchAt(pos, used);
+            if (match) used.add(match.id);
+            else jokersNeeded++;
+          }
+          if (jokersNeeded <= jokerCount) {
+            const remaining = tiles.filter(t => !used.has(t.id));
+            if (canFormGroups(remaining, jokerCount - jokersNeeded)) return true;
+          }
         }
       }
     }
