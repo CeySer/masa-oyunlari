@@ -18,6 +18,11 @@ export interface PlayerProfile {
 }
 
 const ACTIVE_PROFILE_KEY = 'activeProfileId';
+// sessionStorage (not localStorage!): each browser tab gets its own copy, so
+// two family members signed into the same account in two separate tabs (or
+// two devices, which each have their own storage regardless) each keep
+// their own chosen profile - localStorage would have let picking a profile
+// in one tab silently overwrite another open tab's selection.
 
 interface ProfileState {
   profiles: PlayerProfile[];
@@ -52,7 +57,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       socket.emit('list_profiles', { idToken }, (res: any) => {
         if (res.success) {
           const profiles: PlayerProfile[] = res.profiles;
-          const storedId = localStorage.getItem(ACTIVE_PROFILE_KEY);
+          const storedId = sessionStorage.getItem(ACTIVE_PROFILE_KEY);
           const match = storedId ? profiles.find((p) => p.id === storedId) : undefined;
           set({ profiles, profilesLoading: false, profilesReady: true, activeProfile: match || get().activeProfile });
         } else {
@@ -119,8 +124,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
               profiles: s.profiles.filter((p) => p.id !== id),
               activeProfile: s.activeProfile?.id === id ? null : s.activeProfile,
             }));
-            if (localStorage.getItem(ACTIVE_PROFILE_KEY) === id) {
-              localStorage.removeItem(ACTIVE_PROFILE_KEY);
+            if (sessionStorage.getItem(ACTIVE_PROFILE_KEY) === id) {
+              sessionStorage.removeItem(ACTIVE_PROFILE_KEY);
             }
             resolve({ success: true });
           } else {
@@ -132,17 +137,17 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   },
 
   selectProfile: (profile) => {
-    localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
+    sessionStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
     set({ activeProfile: profile });
   },
 
   clearActiveProfile: () => {
-    localStorage.removeItem(ACTIVE_PROFILE_KEY);
+    sessionStorage.removeItem(ACTIVE_PROFILE_KEY);
     set({ activeProfile: null });
   },
 
   reset: () => {
-    localStorage.removeItem(ACTIVE_PROFILE_KEY);
+    sessionStorage.removeItem(ACTIVE_PROFILE_KEY);
     set({ profiles: [], activeProfile: null, profilesLoading: false, profilesReady: false, profilesError: null });
   },
 }));

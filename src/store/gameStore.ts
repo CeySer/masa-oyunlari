@@ -19,6 +19,17 @@ export interface GameResult {
   matchWinners?: { id: string; name: string; score: number }[] | null;
 }
 
+// A lobby another profile under the SAME account currently has open,
+// discoverable without a code (see server.ts broadcastAccountLobbyStatus).
+export interface AccountLobbyStatus {
+  lobbyId: string;
+  gameType: 'okey' | 'tavla';
+  open: boolean;
+  playerCount: number;
+  maxPlayers: number;
+  hostName: string;
+}
+
 interface GameState {
   socket: Socket | null;
   lobby: any;
@@ -29,7 +40,11 @@ interface GameState {
   gameResult: GameResult | null;
   winRejectedMessage: string | null;
   moveRejectedMessage: string | null;
+  // Keyed by lobbyId. Open lobbies from other profiles under this account -
+  // see subscribeAccount() and server.ts's 'account_lobby_status' event.
+  accountLobbies: Record<string, AccountLobbyStatus>;
   connectSocket: () => void;
+  subscribeAccount: (idToken: string) => void;
   setLobby: (lobby: any) => void;
   setPlayer: (player: any) => void;
   setHand: (hand: any[]) => void;
@@ -49,6 +64,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   gameResult: null,
   winRejectedMessage: null,
   moveRejectedMessage: null,
+  accountLobbies: {},
   connectSocket: () => {
     if (!get().socket) {
       // VITE_SERVER_URL points at the game server when frontend and backend
@@ -111,7 +127,30 @@ export const useGameStore = create<GameState>((set, get) => ({
       socket.on('move_rejected', ({ message }: { message: string }) => {
         set({ moveRejectedMessage: message });
       });
+
+      // Real-time updates for lobbies opened by OTHER profiles under this
+      // same account - the initial snapshot comes back from the
+      // 'subscribe_account' callback instead (see subscribeAccount below).
+      socket.on('account_lobby_status', (status: AccountLobbyStatus) => {
+        set((state) => {
+          const next = { ...state.accountLobbies };
+          if (status.open) next[status.lobbyId] = status;
+          else delete next[status.lobbyId];
+          return { accountLobbies: next };
+        });
+      });
     }
+  },
+  subscribeAccount: (idToken: string) => {
+    const socket = get().socket;
+    if (!socket) return;
+    socket.emit('subscribe_account', { idToken }, (res: { success: boolean; openLobbies?: AccountLobbyStatus[] }) => {
+      if (res?.success && res.openLobbies) {
+        const map: Record<string, AccountLobbyStatus> = {};
+        res.openLobbies.forEach((l) => { map[l.lobbyId] = l; });
+        set({ accountLobbies: map });
+      }
+    });
   },
   setLobby: (lobby) => set({ lobby }),
   setPlayer: (player) => set({ player }),

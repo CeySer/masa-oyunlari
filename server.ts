@@ -144,6 +144,35 @@ interface Lobby {
   // whole multi-hand match is over then (not just the current hand), and
   // 'next_round' refuses to deal again. See declare_win.
   matchOver?: boolean;
+  // The Firebase uid that created this lobby (when authRequired) - lets
+  // other profiles under the SAME account discover an open lobby without
+  // needing the code/link (see broadcastAccountLobbyStatus/subscribe_account).
+  ownerUid?: string;
+}
+
+// Every socket signed into account `uid` joins this room (see
+// 'subscribe_account'), so a lobby that account opens can be pushed to every
+// other device/profile signed into it in real time.
+function accountRoom(uid: string) {
+  return `account:${uid}`;
+}
+
+// Tells every OTHER device signed into the same account whether this lobby
+// is currently joinable without a code - called at every point a lobby's
+// player count or status can change. A no-op for lobbies with no owner
+// (Firebase not configured, or a TV-only lobby).
+function broadcastAccountLobbyStatus(lobby: Lobby) {
+  if (!lobby.ownerUid) return;
+  const maxPlayers = lobby.gameType === 'tavla' ? 2 : 4;
+  const humanHost = lobby.players.find(p => !p.isBot);
+  io.to(accountRoom(lobby.ownerUid)).emit('account_lobby_status', {
+    lobbyId: lobby.id,
+    gameType: lobby.gameType,
+    open: lobby.status === 'waiting' && lobby.players.length < maxPlayers,
+    playerCount: lobby.players.length,
+    maxPlayers,
+    hostName: humanHost?.name || 'Spieler',
+  });
 }
 
 const lobbies = new Map<string, Lobby>();
@@ -841,6 +870,7 @@ io.on('connection', (socket) => {
 
     let profile: PlayerProfile | null = null;
     let playerName = name || 'Host';
+    let ownerUid: string | undefined;
 
     // Every lobby now requires a verified account with a chosen player
     // profile once the server has Firebase configured - login (and picking
@@ -859,11 +889,13 @@ io.on('connection', (socket) => {
         return;
       }
       playerName = profile.name;
+      ownerUid = verified.uid;
     }
 
     const lobbyId = createLobby(socket.id, type);
     const lobby = lobbies.get(lobbyId)!;
     lobby.authRequired = firebaseAdminEnabled;
+    lobby.ownerUid = ownerUid;
 
     // Auto-join host as player 1
     const hostPlayer: Player = {
@@ -878,6 +910,40 @@ io.on('connection', (socket) => {
 
     if (callback) callback({ success: true, lobbyId, player: hostPlayer, lobby });
     io.to(lobbyId).emit('lobby_updated', lobby);
+    // Let other profiles under the same account know this lobby just
+    // opened, so their Home screen can offer a direct "Beitreten" button.
+    broadcastAccountLobbyStatus(lobby);
+  });
+
+  // Joins this socket to its account's notification room so it learns in
+  // real time about lobbies opened by OTHER profiles under the same
+  // account (see broadcastAccountLobbyStatus) - and immediately reports any
+  // that are already open right now.
+  socket.on('subscribe_account', async ({ idToken }, callback) => {
+    if (!firebaseAdminEnabled) {
+      if (callback) callback({ success: false });
+      return;
+    }
+    const verified = await verifyIdToken(idToken);
+    if (!verified) {
+      if (callback) callback({ success: false });
+      return;
+    }
+    socket.join(accountRoom(verified.uid));
+
+    const maxPlayersFor = (l: Lobby) => (l.gameType === 'tavla' ? 2 : 4);
+    const openLobbies = Array.from(lobbies.values())
+      .filter(l => l.ownerUid === verified.uid && l.status === 'waiting' && l.players.length < maxPlayersFor(l))
+      .map(l => ({
+        lobbyId: l.id,
+        gameType: l.gameType,
+        open: true,
+        playerCount: l.players.length,
+        maxPlayers: maxPlayersFor(l),
+        hostName: l.players.find(p => !p.isBot)?.name || 'Spieler',
+      }));
+
+    if (callback) callback({ success: true, openLobbies });
   });
 
   socket.on('join_lobby', async ({ lobbyId, name, role, idToken, profileId }, callback) => {
@@ -939,6 +1005,7 @@ io.on('connection', (socket) => {
 
       if (callback) callback({ success: true, player: existingPlayer, lobby });
       io.to(lobbyId).emit('lobby_updated', lobby);
+      broadcastAccountLobbyStatus(lobby);
 
       if (lobby.gameState) {
         broadcastGameState(lobby);
@@ -971,6 +1038,7 @@ io.on('connection', (socket) => {
     lobby.players.push(botPlayer);
     if (callback) callback({ success: true, bot: botPlayer, lobby });
     io.to(lobbyId).emit('lobby_updated', lobby);
+    broadcastAccountLobbyStatus(lobby);
   });
 
   socket.on('remove_bot', ({ lobbyId, botId }) => {
@@ -978,6 +1046,7 @@ io.on('connection', (socket) => {
     if (!lobby || lobby.status !== 'waiting') return;
     lobby.players = lobby.players.filter(p => p.id !== botId);
     io.to(lobbyId).emit('lobby_updated', lobby);
+    broadcastAccountLobbyStatus(lobby);
   });
 
   socket.on('leave_game', ({ lobbyId }, callback) => {
@@ -1007,6 +1076,7 @@ io.on('connection', (socket) => {
       } else {
         lobby.players.splice(playerIdx, 1);
         io.to(lobbyId).emit('lobby_updated', lobby);
+        broadcastAccountLobbyStatus(lobby);
       }
     }
 
@@ -1045,6 +1115,7 @@ io.on('connection', (socket) => {
       initTavlaGame(lobby);
     }
     broadcastGameState(lobby);
+    broadcastAccountLobbyStatus(lobby);
   });
 
   // OKEY ACTIONS

@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
-import { Play, Tv, Trophy, Bot, Dices, Layers, LogOut, MailWarning, Pencil } from 'lucide-react';
+import { Play, Tv, Trophy, Bot, Dices, Layers, LogOut, MailWarning, Pencil, Users } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import { isFirebaseConfigured } from '../lib/firebase';
 
@@ -15,7 +15,7 @@ const GAMES = [
 
 export default function Home() {
   const navigate = useNavigate();
-  const { socket, leaderboard } = useGameStore();
+  const { socket, leaderboard, accountLobbies, subscribeAccount } = useGameStore();
   const { user, logout, getIdToken, resendVerificationEmail, authNotice } = useAuthStore();
   const { activeProfile } = useProfileStore();
   const showToast = useUIStore((s) => s.showToast);
@@ -34,6 +34,21 @@ export default function Home() {
       setName(randomName);
     }
   }, []);
+
+  // Lets other profiles under the SAME account (e.g. a family member on
+  // their own phone) show up here as an open lobby to join with one tap -
+  // no code needed, though the code field below still works too. Also
+  // re-subscribes after a reconnect, since the server-side room membership
+  // this relies on doesn't survive getting a new socket.id.
+  useEffect(() => {
+    if (!socket || !user || !isFirebaseConfigured) return;
+    const subscribe = () => { getIdToken().then((idToken) => idToken && subscribeAccount(idToken)); };
+    subscribe();
+    socket.io.on('reconnect', subscribe);
+    return () => { socket.io.off('reconnect', subscribe); };
+  }, [socket, user]);
+
+  const openAccountLobby = Object.values(accountLobbies).find((l) => l.open);
 
   const handleCreateLobby = async (autoAddBots = false) => {
     // With accounts enabled, a chosen player profile is required for every
@@ -248,6 +263,24 @@ export default function Home() {
             />
 
             <div className="relative space-y-7">
+              {/* A family member on this same account just opened a lobby -
+                  jump straight in, no code needed. */}
+              {openAccountLobby && (
+                <button
+                  onClick={() => navigate(`/lobby/${openAccountLobby.lobbyId}`)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl font-bold text-sm transition active:scale-[0.99] animate-pulse"
+                  style={{ background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
+                >
+                  <span className="flex items-center gap-2 text-left">
+                    <Users className="w-5 h-5 flex-shrink-0" />
+                    <span>
+                      {openAccountLobby.hostName} hat eine Runde offen ({openAccountLobby.playerCount}/{openAccountLobby.maxPlayers})
+                    </span>
+                  </span>
+                  <span className="flex-shrink-0 underline underline-offset-2">Beitreten</span>
+                </button>
+              )}
+
               {/* Player Name Input - dev/local fallback only, without Firebase
                   the active profile's name is used instead */}
               {!isFirebaseConfigured && (
