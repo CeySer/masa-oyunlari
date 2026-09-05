@@ -4,7 +4,6 @@ import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { Play, Tv, Trophy, Bot, Dices, Layers, ShieldAlert, Sparkles, LogIn, LogOut, UserCircle2, MailWarning } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
-import AuthModal from '../components/AuthModal';
 import { isFirebaseConfigured } from '../lib/firebase';
 
 export default function Home() {
@@ -14,8 +13,6 @@ export default function Home() {
   const [name, setName] = useState(localStorage.getItem('playerName') || '');
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     if (!name) {
@@ -30,8 +27,7 @@ export default function Home() {
     // count towards a persistent identity/leaderboard. The solo bot-test
     // stays open to everyone, exactly like before.
     if (!autoAddBots && isFirebaseConfigured && !user) {
-      setPendingAction(() => () => handleCreateLobby(false));
-      setShowAuthModal(true);
+      navigate('/login', { state: { from: '/' } });
       return;
     }
 
@@ -105,7 +101,7 @@ export default function Home() {
               </button>
             ) : (
               <button
-                onClick={() => setShowAuthModal(true)}
+                onClick={() => navigate('/login', { state: { from: '/' } })}
                 title="Anmelden"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text)]"
               >
@@ -116,18 +112,6 @@ export default function Home() {
           )}
         </div>
       </header>
-
-      {showAuthModal && (
-        <AuthModal
-          onClose={() => setShowAuthModal(false)}
-          onSuccess={() => {
-            setShowAuthModal(false);
-            const action = pendingAction;
-            setPendingAction(null);
-            action?.();
-          }}
-        />
-      )}
 
       {user && !user.emailVerified && (
         <div className="max-w-xl w-full mx-auto mt-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-xs" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)', color: 'var(--color-text-muted)' }}>

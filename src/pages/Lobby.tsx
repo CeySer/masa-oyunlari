@@ -5,7 +5,6 @@ import { useAuthStore } from '../store/authStore';
 import { QRCodeSVG } from 'qrcode.react';
 import { Users, Play, Bot, UserPlus, Copy, Check, Tv, ArrowLeft, Trash2 } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
-import AuthModal from '../components/AuthModal';
 
 export default function Lobby() {
   const { id } = useParams();
@@ -14,7 +13,6 @@ export default function Lobby() {
   const { user, authReady, getIdToken } = useAuthStore();
   const [name, setName] = useState(localStorage.getItem('playerName') || '');
   const [copied, setCopied] = useState(false);
-  const [needsAuth, setNeedsAuth] = useState(false);
 
   const attemptJoin = async () => {
     if (!socket || !id) return;
@@ -23,9 +21,8 @@ export default function Lobby() {
     socket.emit('join_lobby', { lobbyId: id, name: storedName, role: 'player', idToken }, (res: any) => {
       if (res.success) {
         setPlayer(res.player);
-        setNeedsAuth(false);
       } else if (res.error === 'auth_required') {
-        setNeedsAuth(true);
+        navigate('/login', { state: { from: `/lobby/${id}` } });
       } else if (res.error) {
         alert(res.error);
         navigate('/');
@@ -91,13 +88,6 @@ export default function Lobby() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col p-4 sm:p-6">
-
-      {needsAuth && (
-        <AuthModal
-          onClose={() => navigate('/')}
-          onSuccess={() => attemptJoin()}
-        />
-      )}
 
       {/* Header */}
       <div className="max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)] mb-6">

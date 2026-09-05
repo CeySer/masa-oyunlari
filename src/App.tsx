@@ -8,6 +8,7 @@ import Home from './pages/Home';
 import Lobby from './pages/Lobby';
 import Game from './pages/Game';
 import TV from './pages/TV';
+import Login from './pages/Login';
 import { useEffect } from 'react';
 import { useGameStore } from './store/gameStore';
 import { useAuthStore } from './store/authStore';
@@ -36,6 +37,7 @@ export default function App() {
       <div className="min-h-screen font-sans" style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/lobby/:id" element={<Lobby />} />
           <Route path="/game/:id" element={<Game />} />
           <Route path="/tv/:id?" element={<TV />} />
