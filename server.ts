@@ -3,6 +3,9 @@ import { createServer } from 'http';
 import path from 'path';
 import { Server as SocketIOServer } from 'socket.io';
 import { createServer as createViteServer } from 'vite';
+import { initializeApp, cert, type App } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,12 +17,52 @@ const io = new SocketIOServer(httpServer, {
 
 const PORT = Number(process.env.PORT) || 3000;
 
+// --- Firebase Admin (accounts + persistent leaderboard) -------------------
+// Optional: without these env vars the server runs exactly as before
+// (anonymous names, in-memory-only leaderboard) - real accounts are only
+// required for online multiplayer once this is configured. See README.md
+// for how to obtain a service account key from the Firebase Console.
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
+const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL;
+const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+const firebaseAdminEnabled = Boolean(FIREBASE_PROJECT_ID && FIREBASE_CLIENT_EMAIL && FIREBASE_PRIVATE_KEY);
+
+let firebaseApp: App | null = null;
+let db: Firestore | null = null;
+
+if (firebaseAdminEnabled) {
+  firebaseApp = initializeApp({
+    credential: cert({
+      projectId: FIREBASE_PROJECT_ID,
+      clientEmail: FIREBASE_CLIENT_EMAIL,
+      privateKey: FIREBASE_PRIVATE_KEY,
+    }),
+  });
+  db = getFirestore(firebaseApp);
+  console.log('Firebase Admin initialisiert - Online-Konten & persistente Rangliste aktiv.');
+} else {
+  console.log('Firebase Admin NICHT konfiguriert - Online-Multiplayer-Login ist deaktiviert (siehe README.md).');
+}
+
+async function verifyIdToken(idToken?: string): Promise<{ uid: string; name: string } | null> {
+  if (!firebaseApp || !idToken) return null;
+  try {
+    const decoded = await getAuth(firebaseApp).verifyIdToken(idToken);
+    return { uid: decoded.uid, name: decoded.name || decoded.email || 'Spieler' };
+  } catch (err) {
+    console.warn('ID-Token-Verifizierung fehlgeschlagen:', (err as Error).message);
+    return null;
+  }
+}
+
 interface Player {
   id: string;
   name: string;
   isBot?: boolean;
   score: number;
   elo: number;
+  uid?: string;
 }
 
 interface Lobby {
@@ -31,17 +74,49 @@ interface Lobby {
   status: 'waiting' | 'playing' | 'finished';
   gameState: any;
   targetScore: number;
+  authRequired?: boolean;
 }
 
 const lobbies = new Map<string, Lobby>();
 
-// Persistent leaderboards in memory
-const globalLeaderboard: Record<string, { name: string; elo: number; wins: number; losses: number; games: number }> = {
-  'Ahmet': { name: 'Ahmet', elo: 1240, wins: 12, losses: 4, games: 16 },
-  'Mehmet': { name: 'Mehmet', elo: 1180, wins: 9, losses: 6, games: 15 },
-  'Ayşe': { name: 'Ayşe', elo: 1050, wins: 5, losses: 5, games: 10 },
-  'Can (Bot)': { name: 'Can (Bot)', elo: 1000, wins: 3, losses: 8, games: 11 },
-};
+// Persistent leaderboard, keyed by Firebase uid so accounts never collide on
+// display name. Backed by Firestore (collection "leaderboard") when Firebase
+// Admin is configured; otherwise it just lives in memory like before and
+// resets on restart.
+const globalLeaderboard: Record<string, { uid: string; name: string; elo: number; wins: number; losses: number; games: number }> = {};
+
+async function loadLeaderboardFromFirestore() {
+  if (!db) return;
+  try {
+    const snapshot = await db.collection('leaderboard').orderBy('elo', 'desc').limit(100).get();
+    snapshot.forEach((doc) => {
+      globalLeaderboard[doc.id] = doc.data() as any;
+    });
+    console.log(`Rangliste aus Firestore geladen (${snapshot.size} Einträge).`);
+  } catch (err) {
+    console.warn('Rangliste konnte nicht aus Firestore geladen werden:', (err as Error).message);
+  }
+}
+
+function bumpLeaderboardEntry(uid: string, name: string, opts: { won: boolean }) {
+  const entry = globalLeaderboard[uid] || { uid, name, elo: 1200, wins: 0, losses: 0, games: 0 };
+  entry.name = name; // keep the display name fresh in case it changed
+  entry.games += 1;
+  if (opts.won) {
+    entry.wins += 1;
+    entry.elo += 25;
+  } else {
+    entry.losses += 1;
+    entry.elo = Math.max(800, entry.elo - 15);
+  }
+  globalLeaderboard[uid] = entry;
+
+  if (db) {
+    db.collection('leaderboard').doc(uid).set(entry, { merge: true }).catch((err) => {
+      console.warn('Rangliste konnte nicht in Firestore gespeichert werden:', (err as Error).message);
+    });
+  }
+}
 
 function createLobby(hostSocketId: string, gameType: 'okey' | 'tavla' = 'okey'): string {
   const lobbyId = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -448,17 +523,40 @@ io.on('connection', (socket) => {
     io.to(lobbyId).emit('lobby_updated', lobby);
   });
 
-  socket.on('create_lobby', ({ gameType, name }, callback) => {
+  socket.on('create_lobby', async ({ gameType, name, online, idToken }, callback) => {
     const type = gameType === 'tavla' ? 'tavla' : 'okey';
+
+    let uid: string | undefined;
+    let playerName = name || 'Host';
+
+    // Online multiplayer lobbies (created via "Mehrspieler-Lobby Erstellen")
+    // require a verified account. The solo bot-test flow ("online" not set)
+    // keeps working exactly as before, without any login.
+    if (online) {
+      if (!firebaseAdminEnabled) {
+        if (callback) callback({ success: false, error: 'Online-Konten sind auf diesem Server noch nicht eingerichtet.' });
+        return;
+      }
+      const verified = await verifyIdToken(idToken);
+      if (!verified) {
+        if (callback) callback({ success: false, error: 'auth_required' });
+        return;
+      }
+      uid = verified.uid;
+      playerName = verified.name;
+    }
+
     const lobbyId = createLobby(socket.id, type);
     const lobby = lobbies.get(lobbyId)!;
+    lobby.authRequired = Boolean(online);
 
     // Auto-join host as player 1
     const hostPlayer: Player = {
       id: socket.id,
-      name: name || 'Host',
+      name: playerName,
       score: 0,
-      elo: globalLeaderboard[name]?.elo || 1200,
+      elo: (uid && globalLeaderboard[uid]?.elo) || 1200,
+      uid,
     };
     lobby.players.push(hostPlayer);
     socket.join(lobbyId);
@@ -467,7 +565,7 @@ io.on('connection', (socket) => {
     io.to(lobbyId).emit('lobby_updated', lobby);
   });
 
-  socket.on('join_lobby', ({ lobbyId, name, role }, callback) => {
+  socket.on('join_lobby', async ({ lobbyId, name, role, idToken }, callback) => {
     const lobby = lobbies.get(lobbyId);
     if (!lobby) {
       if (callback) callback({ success: false, error: 'Lobby nicht gefunden!' });
@@ -484,8 +582,25 @@ io.on('connection', (socket) => {
         broadcastGameState(lobby);
       }
     } else {
-      // Check if player already in lobby
-      let existingPlayer = lobby.players.find(p => p.id === socket.id || p.name === name);
+      let uid: string | undefined;
+      let playerName = name;
+
+      // Real online lobbies (created with a verified account) require every
+      // joining human to also be verified - the client-supplied name is not
+      // trusted here, the account's own name is used instead.
+      if (lobby.authRequired) {
+        const verified = await verifyIdToken(idToken);
+        if (!verified) {
+          if (callback) callback({ success: false, error: 'auth_required' });
+          return;
+        }
+        uid = verified.uid;
+        playerName = verified.name;
+      }
+
+      // Check if player already in lobby (match by uid when available, since
+      // the socket id changes on every reconnect)
+      let existingPlayer = lobby.players.find(p => (uid && p.uid === uid) || p.id === socket.id || p.name === playerName);
       if (existingPlayer) {
         existingPlayer.id = socket.id; // update socket id
       } else {
@@ -495,9 +610,10 @@ io.on('connection', (socket) => {
         }
         existingPlayer = {
           id: socket.id,
-          name: name || `Spieler ${lobby.players.length + 1}`,
+          name: playerName || `Spieler ${lobby.players.length + 1}`,
           score: 0,
-          elo: globalLeaderboard[name]?.elo || 1200,
+          elo: (uid && globalLeaderboard[uid]?.elo) || 1200,
+          uid,
         };
         lobby.players.push(existingPlayer);
       }
@@ -695,22 +811,15 @@ io.on('connection', (socket) => {
     lobby.status = 'finished';
     addLog(lobby, `🏆 ${winner.name} hat OKEY beendet und 100 Punkte gewonnen!`);
 
-    // Update global leaderboard
-    if (!globalLeaderboard[winner.name]) {
-      globalLeaderboard[winner.name] = { name: winner.name, elo: 1200, wins: 0, losses: 0, games: 0 };
+    // Update the persistent leaderboard - only for players with a real
+    // account (uid). Bots and anonymous solo-test players never appear on
+    // the global ranking.
+    if (winner.uid) {
+      bumpLeaderboardEntry(winner.uid, winner.name, { won: true });
     }
-    globalLeaderboard[winner.name].wins += 1;
-    globalLeaderboard[winner.name].games += 1;
-    globalLeaderboard[winner.name].elo += 25;
-
     lobby.players.forEach(p => {
-      if (p.name !== winner.name) {
-        if (!globalLeaderboard[p.name]) {
-          globalLeaderboard[p.name] = { name: p.name, elo: 1200, wins: 0, losses: 0, games: 0 };
-        }
-        globalLeaderboard[p.name].losses += 1;
-        globalLeaderboard[p.name].games += 1;
-        globalLeaderboard[p.name].elo = Math.max(800, globalLeaderboard[p.name].elo - 15);
+      if (p.uid && p.uid !== winner.uid) {
+        bumpLeaderboardEntry(p.uid, p.name, { won: false });
       }
     });
 
@@ -816,6 +925,8 @@ io.on('connection', (socket) => {
 });
 
 async function startServer() {
+  await loadLeaderboardFromFirestore();
+
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
   });

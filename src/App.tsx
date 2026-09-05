@@ -10,14 +10,20 @@ import Game from './pages/Game';
 import TV from './pages/TV';
 import { useEffect } from 'react';
 import { useGameStore } from './store/gameStore';
+import { useAuthStore } from './store/authStore';
 import { applyTheme, getStoredTheme } from './lib/theme';
 
 export default function App() {
   const connectSocket = useGameStore(state => state.connectSocket);
+  const initAuth = useAuthStore(state => state.initAuth);
 
   useEffect(() => {
     connectSocket();
   }, [connectSocket]);
+
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
 
   useEffect(() => {
     // Apply the saved theme on first load, regardless of which page/route
