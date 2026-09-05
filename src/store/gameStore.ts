@@ -59,6 +59,17 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       set({ socket });
 
+      // A reconnect (dropped WiFi, backgrounded tab, or the tab being paused
+      // by a blocking window.alert()) gets a brand-new socket.id from the
+      // server. The lobby on the server still has our OLD id tied to our
+      // seat/turn, so without rejoining, isMyTurn (id comparison) would
+      // silently stay false forever - looking exactly like a frozen game.
+      // Clearing `player` here makes the existing "rejoin if !player" effect
+      // (see Game.tsx) fire again and re-associate our seat with the new id.
+      socket.io.on('reconnect', () => {
+        set({ player: null });
+      });
+
       socket.on('lobby_updated', (lobby) => {
         set({ lobby });
       });
