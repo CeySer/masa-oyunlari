@@ -48,6 +48,11 @@ export default function Game() {
     navigate(`/lobby/${id}`);
   };
 
+  const handleNextRound = () => {
+    socket?.emit('next_round', { lobbyId: id });
+    clearGameResult();
+  };
+
   if (!lobby || !publicGameState) {
     return (
       <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-center p-4">
@@ -70,6 +75,10 @@ export default function Game() {
 
   if (lobby.status === 'finished') {
     const iWon = gameResult?.winner?.id === socket?.id;
+    const isOkey = lobby.gameType === 'okey';
+    const matchOver = isOkey && gameResult?.matchOver;
+    const winTypeLabel =
+      gameResult?.winType === 'pairs' ? ' mit 7 Paaren' : gameResult?.pointsLost === 4 ? ' durch Abwerfen des Okey-Steins' : '';
     return (
       <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-center p-6 select-none text-center">
         <Trophy className={`w-20 h-20 mb-4 ${iWon ? 'text-[var(--color-accent)] animate-bounce' : 'text-[var(--color-text-muted)]'}`} />
@@ -83,6 +92,16 @@ export default function Game() {
         {gameResult?.reason === 'pile_empty' && (
           <p className="text-[var(--color-text-muted)] text-sm mb-6">Der Nachziehstapel ist leer - niemand konnte Okey ausrufen.</p>
         )}
+        {isOkey && gameResult?.winner && !gameResult?.reason && (
+          <p className="text-[var(--color-text-muted)] text-sm mb-6">
+            Gewonnen{winTypeLabel} - jeder andere Spieler verliert {gameResult.pointsLost} Punkte.
+          </p>
+        )}
+        {matchOver && gameResult?.matchWinners && (
+          <p className="text-sm mb-2 font-bold" style={{ color: 'var(--color-accent)' }}>
+            Match beendet! Sieger: {gameResult.matchWinners.map((p) => p.name).join(' & ')}
+          </p>
+        )}
         <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 w-full max-w-sm mt-4 shadow-2xl">
           <h2 className="text-sm font-bold text-[var(--color-text-muted)] mb-4 uppercase tracking-wide">Punktestand</h2>
           <ul className="space-y-2">
@@ -93,16 +112,30 @@ export default function Game() {
                   <span className="flex items-center gap-1.5">
                     {p.isBot && <Bot className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />}
                     {p.name}
+                    {p.score <= 0 && <span className="text-[10px] text-red-400 font-bold">(raus)</span>}
                   </span>
                   <span className="font-black text-emerald-400">{p.score} Pkt</span>
                 </li>
               ))}
           </ul>
         </div>
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-3 mt-6 flex-wrap justify-center">
+          {isOkey && !matchOver && (
+            <button
+              onClick={handleNextRound}
+              className="px-5 py-2.5 bg-[var(--color-accent)] hover:bg-[var(--color-accent-strong)] text-[var(--color-accent-contrast)] font-bold text-sm rounded-xl transition flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Nächste Runde
+            </button>
+          )}
           <button
             onClick={handleBackToLobby}
-            className="px-5 py-2.5 bg-[var(--color-accent)] hover:bg-[var(--color-accent-strong)] text-[var(--color-accent-contrast)] font-bold text-sm rounded-xl transition flex items-center gap-2"
+            className={
+              isOkey && !matchOver
+                ? 'px-5 py-2.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-semibold text-sm rounded-xl transition flex items-center gap-2'
+                : 'px-5 py-2.5 bg-[var(--color-accent)] hover:bg-[var(--color-accent-strong)] text-[var(--color-accent-contrast)] font-bold text-sm rounded-xl transition flex items-center gap-2'
+            }
           >
             <RefreshCw className="w-4 h-4" />
             Zurück zur Lobby

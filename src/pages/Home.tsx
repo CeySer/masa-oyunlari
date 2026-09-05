@@ -25,6 +25,7 @@ export default function Home() {
   const [name, setName] = useState(localStorage.getItem('playerName') || '');
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
 
   useEffect(() => {
     if (!isFirebaseConfigured && !name) {
@@ -54,19 +55,13 @@ export default function Home() {
       (res: any) => {
         if (res.success) {
           if (autoAddBots) {
-            const numBots = gameType === 'tavla' ? 1 : 3;
-            let added = 0;
-            const addNextBot = () => {
-              if (added < numBots) {
-                socket.emit('add_bot', { lobbyId: res.lobbyId }, () => {
-                  added++;
-                  addNextBot();
-                });
-              } else {
-                navigate(`/lobby/${res.lobbyId}`);
-              }
-            };
-            addNextBot();
+            // Solo vs. computer: start_game already fills every empty seat
+            // with bots on its own (see server.ts), so there's no reason to
+            // add them one by one first. Start immediately and go straight
+            // to the board - the invite/QR lobby screen would be pointless
+            // here since nobody else is ever going to join.
+            socket.emit('start_game', { lobbyId: res.lobbyId });
+            navigate(`/game/${res.lobbyId}`);
           } else {
             navigate(`/lobby/${res.lobbyId}`);
           }
@@ -75,6 +70,15 @@ export default function Home() {
         }
       }
     );
+  };
+
+  const handleJoinByCode = () => {
+    const code = joinCode.trim().toUpperCase();
+    if (!code) return;
+    // Lobby.tsx joins on mount by itself (see its attemptJoin effect) - just
+    // navigating there is enough; a bad/expired code shows up as an error
+    // there instead of needing to be checked twice.
+    navigate(`/lobby/${code}`);
   };
 
   return (
@@ -317,54 +321,56 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="space-y-3 pt-1">
+              {/* Actions - big icon-first tiles, minimal text */}
+              <div className="grid grid-cols-3 gap-3 pt-1">
                 <button
                   onClick={() => handleCreateLobby(false)}
                   disabled={isFirebaseConfigured && !activeProfile}
-                  className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-[var(--color-cta-from)] to-[var(--color-cta-to)] hover:from-[var(--color-cta-hover-from)] hover:to-[var(--color-cta-hover-to)] disabled:opacity-60 text-white py-4 rounded-2xl font-bold shadow-xl transition active:scale-[0.99]"
+                  className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl font-bold shadow-xl transition active:scale-[0.98] disabled:opacity-60 bg-gradient-to-br from-[var(--color-cta-from)] to-[var(--color-cta-to)] text-white"
                 >
-                  <Play className="w-5 h-5 fill-current" />
-                  <span>Mehrspieler-Lobby Erstellen</span>
+                  <Play className="w-7 h-7 fill-current" />
+                  <span className="text-xs leading-tight text-center">Online-Lobby</span>
                 </button>
 
                 <button
                   onClick={() => handleCreateLobby(true)}
-                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl font-semibold border transition active:scale-[0.99]"
-                  style={{
-                    background: 'var(--color-surface-2)',
-                    borderColor: 'var(--color-border-strong)',
-                    color: 'var(--color-accent)',
-                  }}
+                  className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl font-bold border-2 transition active:scale-[0.98]"
+                  style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-border-strong)', color: 'var(--color-accent)' }}
                 >
-                  <Bot className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <span>Solo gegen Computer spielen</span>
+                  <Bot className="w-7 h-7" />
+                  <span className="text-xs leading-tight text-center">Gegen Computer</span>
+                </button>
+
+                <button
+                  onClick={() => navigate('/tv')}
+                  className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl font-bold border-2 transition active:scale-[0.98]"
+                  style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-border-strong)', color: 'var(--color-text)' }}
+                >
+                  <Tv className="w-7 h-7" style={{ color: 'var(--color-text-muted)' }} />
+                  <span className="text-xs leading-tight text-center">TV-Modus</span>
                 </button>
               </div>
 
-              <div className="relative py-1">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-[var(--color-border)]"></div>
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="px-3 bg-[var(--color-surface)] text-[var(--color-text-muted)] uppercase tracking-widest font-semibold">
-                    Oder Fernseher Modus
-                  </span>
-                </div>
+              {/* Join an existing lobby by its code, without a link/QR */}
+              <div className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === 'Enter' && handleJoinByCode()}
+                  maxLength={8}
+                  placeholder="Lobby-Code eingeben"
+                  className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-mono font-bold tracking-widest text-sm uppercase focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition"
+                />
+                <button
+                  onClick={handleJoinByCode}
+                  disabled={!joinCode.trim()}
+                  className="px-5 py-3 rounded-xl font-bold text-sm transition disabled:opacity-40"
+                  style={{ background: 'var(--color-surface-3)', color: 'var(--color-text)', border: '1px solid var(--color-border-strong)' }}
+                >
+                  Beitreten
+                </button>
               </div>
-
-              <button
-                onClick={() => navigate('/tv')}
-                className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl font-semibold border transition"
-                style={{
-                  background: 'var(--color-surface-2)',
-                  borderColor: 'var(--color-border-strong)',
-                  color: 'var(--color-text)',
-                }}
-              >
-                <Tv className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
-                <span>Öffentliche TV / Tablett-Ansicht Starten</span>
-              </button>
             </div>
           </div>
         )}

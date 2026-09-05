@@ -13,6 +13,10 @@ export interface LeaderboardEntry {
 export interface GameResult {
   winner: { id: string; name: string } | null;
   reason?: string;
+  winType?: 'runset' | 'pairs';
+  pointsLost?: number;
+  matchOver?: boolean;
+  matchWinners?: { id: string; name: string; score: number }[] | null;
 }
 
 interface GameState {
@@ -93,10 +97,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ leaderboard });
       });
 
-      socket.on('game_ended', ({ winner, reason }) => {
+      socket.on('game_ended', ({ winner, reason, winType, pointsLost, matchOver, matchWinners }) => {
         set((state) => ({
           lobby: state.lobby ? { ...state.lobby, status: 'finished' } : null,
-          gameResult: { winner: winner || null, reason },
+          gameResult: { winner: winner || null, reason, winType, pointsLost, matchOver, matchWinners },
         }));
       });
 

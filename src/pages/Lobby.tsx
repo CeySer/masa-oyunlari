@@ -6,8 +6,9 @@ import { useProfileStore } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { QRCodeSVG } from 'qrcode.react';
-import { Users, Play, Bot, UserPlus, Copy, Check, Tv, ArrowLeft, Trash2 } from 'lucide-react';
+import { Users, Play, Bot, UserPlus, Copy, Check, Tv, Trash2 } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
+import BrandLogo from '../components/BrandLogo';
 
 export default function Lobby() {
   const { id } = useParams();
@@ -102,14 +103,8 @@ export default function Lobby() {
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col p-4 sm:p-6">
 
       {/* Header */}
-      <div className="max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)] mb-6">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Hauptmenü</span>
-        </button>
+      <div className="max-w-4xl w-full mx-auto flex items-center justify-between flex-wrap gap-y-2 py-4 border-b border-[var(--color-border)] mb-6">
+        <BrandLogo compact />
 
         <div className="text-center">
           <span className="text-xs uppercase font-bold text-[var(--color-text-muted)] tracking-wider">Lobby-Code</span>

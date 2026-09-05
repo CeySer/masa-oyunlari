@@ -117,10 +117,18 @@ interface Player {
   id: string;
   name: string;
   isBot?: boolean;
+  // Okey match score. Traditional Okey scoring: everyone starts at
+  // OKEY_STARTING_SCORE and only LOSES points, never gains any - each hand's
+  // losers are docked per declare_win below, the winner's own score doesn't
+  // move. The match keeps dealing further hands until somebody's score
+  // drops to 0 or below, at which point the two players left with the most
+  // points are the overall winners of the match.
   score: number;
   elo: number;
   profileId?: string;
 }
+
+const OKEY_STARTING_SCORE = 20;
 
 interface Lobby {
   id: string;
@@ -132,6 +140,10 @@ interface Lobby {
   gameState: any;
   targetScore: number;
   authRequired?: boolean;
+  // Okey only: true once someone's score has dropped to 0 or below - the
+  // whole multi-hand match is over then (not just the current hand), and
+  // 'next_round' refuses to deal again. See declare_win.
+  matchOver?: boolean;
 }
 
 const lobbies = new Map<string, Lobby>();
@@ -304,6 +316,12 @@ function canFormGroups(tiles: OkeyTile[], jokerCount: number): boolean {
     // but it never wraps further (13-1-2 is not valid). A position of 14
     // matches a tile whose printed value is 1; every other position matches
     // its own printed value.
+    //
+    // Unlike sets (capped at 4 - there are only 4 colors), runs have no
+    // upper size limit other than "how many consecutive values exist": per
+    // the official rules, a run is "three or more consecutive tiles of the
+    // same colour" - e.g. a same-color 9-10-11-12-13 run of 5 is one single
+    // valid group, not something that must be chopped into a 3 and a 4.
     const sameColor = tiles.filter(t => t.color === first.color);
     const matchAt = (pos: number, used: Set<number>) =>
       sameColor.find(t => t.value === (pos === 14 ? 1 : pos) && !used.has(t.id));
@@ -311,9 +329,10 @@ function canFormGroups(tiles: OkeyTile[], jokerCount: number): boolean {
     // The anchor tile can represent its own value, and - only when it's a 1 -
     // can also represent the extended top position (14).
     const effectiveValues = first.value === 1 ? [1, 14] : [first.value];
+    const maxRunSize = Math.min(13, tiles.length + jokerCount);
 
     for (const anchorValue of effectiveValues) {
-      for (let size = 3; size <= 4; size++) {
+      for (let size = 3; size <= maxRunSize; size++) {
         // Try every window of length `size` that includes anchorValue.
         for (let start = anchorValue - size + 1; start <= anchorValue; start++) {
           const end = start + size - 1;
@@ -365,12 +384,23 @@ function isValidPairsHand(tiles: OkeyTile[], indicator: OkeyTile | null | undefi
   return neededJokers <= jokers.length;
 }
 
-// Given a 15-tile hand, checks if discarding any one tile leaves a valid winning hand.
-function findWinningDiscard(hand: OkeyTile[], indicator: OkeyTile | null | undefined): OkeyTile | null {
+type WinType = 'runset' | 'pairs';
+
+// Given a 15-tile hand, checks if discarding any one tile leaves a valid
+// winning hand. Also reports which kind of hand it was (sets/runs vs. the
+// "Çift" seven-pairs variant) and whether the winning discard is the joker
+// itself - both feed into the point scoring in the 'declare_win' handler.
+function findWinningDiscard(
+  hand: OkeyTile[],
+  indicator: OkeyTile | null | undefined
+): { tile: OkeyTile; type: WinType } | null {
   for (let i = 0; i < hand.length; i++) {
     const remaining = [...hand.slice(0, i), ...hand.slice(i + 1)];
-    if (isValidRunSetHand(remaining, indicator) || isValidPairsHand(remaining, indicator)) {
-      return hand[i];
+    if (isValidRunSetHand(remaining, indicator)) {
+      return { tile: hand[i], type: 'runset' };
+    }
+    if (isValidPairsHand(remaining, indicator)) {
+      return { tile: hand[i], type: 'pairs' };
     }
   }
   return null;
@@ -839,7 +869,7 @@ io.on('connection', (socket) => {
     const hostPlayer: Player = {
       id: socket.id,
       name: playerName,
-      score: 0,
+      score: OKEY_STARTING_SCORE,
       elo: profile?.elo || 1200,
       profileId: profile?.id,
     };
@@ -900,7 +930,7 @@ io.on('connection', (socket) => {
         existingPlayer = {
           id: socket.id,
           name: playerName || `Spieler ${lobby.players.length + 1}`,
-          score: 0,
+          score: OKEY_STARTING_SCORE,
           elo: profile?.elo || 1200,
           profileId: profile?.id,
         };
@@ -934,7 +964,7 @@ io.on('connection', (socket) => {
       id: `bot_${Math.random().toString(36).substring(2, 7)}`,
       name: availableName,
       isBot: true,
-      score: 0,
+      score: OKEY_STARTING_SCORE,
       elo: 1000,
     };
 
@@ -988,6 +1018,12 @@ io.on('connection', (socket) => {
     const lobby = lobbies.get(lobbyId);
     if (!lobby || lobby.players.length < 1) return;
 
+    // Fresh match: everyone starts at the same score, even if this lobby
+    // previously played a match to completion (matchOver) and is being
+    // restarted rather than continued via 'next_round'.
+    lobby.matchOver = false;
+    lobby.players.forEach(p => { p.score = OKEY_STARTING_SCORE; });
+
     // Auto-fill missing seats with bots if fewer than target max players
     const maxRequired = lobby.gameType === 'okey' ? 4 : 2;
     const botNames = ['Bot Can', 'Bot Elif', 'Bot Mehmet', 'Bot Zeynep'];
@@ -998,7 +1034,7 @@ io.on('connection', (socket) => {
         id: `bot_${Math.random().toString(36).substring(2, 7)}`,
         name,
         isBot: true,
-        score: 0,
+        score: OKEY_STARTING_SCORE,
         elo: 1000,
       });
     }
@@ -1044,8 +1080,10 @@ io.on('connection', (socket) => {
       // No tiles left anywhere to draw - the round ends in a draw (no winner).
       addLog(lobby, `⚠️ Der Stapel ist leer. Runde endet unentschieden.`);
       lobby.status = 'finished';
+      // No points change on a draw, so the match itself never ends here.
+      lobby.matchOver = false;
       io.to(lobbyId).emit('lobby_updated', lobby);
-      io.to(lobbyId).emit('game_ended', { winner: null, players: lobby.players, reason: 'pile_empty' });
+      io.to(lobbyId).emit('game_ended', { winner: null, players: lobby.players, reason: 'pile_empty', matchOver: false });
     }
   });
 
@@ -1085,21 +1123,41 @@ io.on('connection', (socket) => {
     const hand = gs.hands[winner.id];
     if (!hand || hand.length !== 15) return;
 
-    const winningDiscard = findWinningDiscard(hand, gs.indicator);
-    if (!winningDiscard) {
+    const result = findWinningDiscard(hand, gs.indicator);
+    if (!result) {
       socket.emit('win_rejected', {
-        message: 'Deine Steine bilden noch keine gültige Okey-Hand (Reihen/Sätze zu je 3-4 oder 7 Paare). Weiterspielen!',
+        message: 'Deine Steine bilden noch keine gültige Okey-Hand (Reihen/Sätze zu je 3+ oder 7 Paare). Weiterspielen!',
       });
       return;
     }
+    const { tile: winningDiscard, type: winType } = result;
 
     // Remove the tile that completes the winning hand from play (it's the "extra" 15th tile).
     const idx = hand.findIndex(t => t.id === winningDiscard.id);
     if (idx !== -1) hand.splice(idx, 1);
 
-    winner.score += 100;
+    // Traditional Okey scoring: the winner's own score never moves - only
+    // the OTHER players lose points. An ordinary sets/runs win costs each
+    // loser 2 points; winning with seven pairs, or by discarding the joker
+    // itself (a much harder way to go out), costs each loser 4.
+    const jokerDiscardWin = isJokerTile(winningDiscard, gs.indicator);
+    const pointsLost = winType === 'pairs' || jokerDiscardWin ? 4 : 2;
+    lobby.players.forEach(p => {
+      if (p.id !== winner.id) p.score -= pointsLost;
+    });
+
+    // The match (this whole run of hands, not just this one) ends once
+    // somebody's score drops to zero or below - then the two players left
+    // with the most points are the overall winners.
+    const matchOver = lobby.players.some(p => p.score <= 0);
+    lobby.matchOver = matchOver;
+    const matchWinners = matchOver
+      ? [...lobby.players].sort((a, b) => b.score - a.score).slice(0, 2)
+      : null;
+
     lobby.status = 'finished';
-    addLog(lobby, `🏆 ${winner.name} hat OKEY beendet und 100 Punkte gewonnen!`);
+    const winLabel = winType === 'pairs' ? 'mit 7 Paaren' : jokerDiscardWin ? 'durch Abwerfen des Okey-Steins' : '';
+    addLog(lobby, `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - jeder andere verliert ${pointsLost} Punkte!`);
 
     // Update the persistent leaderboard - only for players with a real
     // profile. Bots and anonymous solo-test players never appear on the
@@ -1119,8 +1177,16 @@ io.on('connection', (socket) => {
     // was mutated on the server but the client never learned about it and
     // showed everyone stuck at 0.
     io.to(lobbyId).emit('lobby_updated', lobby);
-    io.to(lobbyId).emit('game_ended', { winner, players: lobby.players });
+    io.to(lobbyId).emit('game_ended', { winner, players: lobby.players, winType, pointsLost, matchOver, matchWinners });
     io.emit('leaderboard_updated', Object.values(globalLeaderboard));
+  });
+
+  // Deals a new hand within the same match, keeping every player's running
+  // score - used after a hand ends but the match (nobody at 0 yet) goes on.
+  socket.on('next_round', ({ lobbyId }) => {
+    const lobby = lobbies.get(lobbyId);
+    if (!lobby || lobby.status !== 'finished' || lobby.gameType !== 'okey' || lobby.matchOver) return;
+    initOkeyGame(lobby);
   });
 
   // TAVLA (BACKGAMMON) ACTIONS

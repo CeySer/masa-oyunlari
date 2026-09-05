@@ -16,10 +16,10 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col p-4 sm:p-6 font-sans">
       <header className="max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2"
-        >
+        {/* Not a link: there is no valid destination before signing in (see
+            note above) - a clickable logo here would just bounce back to
+            this same page, which is confusing, not a shortcut. */}
+        <div className="flex items-center gap-2">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm text-white"
             style={{ background: 'linear-gradient(145deg, var(--color-cta-from), var(--color-cta-to))' }}
@@ -27,7 +27,7 @@ export default function Login() {
             M
           </div>
           <span className="font-black text-sm">Masa Oyunları</span>
-        </button>
+        </div>
         <ThemeSwitcher />
       </header>
 
