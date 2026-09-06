@@ -11,7 +11,6 @@ import {
   Volume2,
   VolumeX,
   BookOpen,
-  Users,
   MessageCircleQuestion,
   Pencil,
   UserCog,
@@ -20,8 +19,7 @@ import {
   Copy,
   Check,
   Palette,
-  DoorOpen,
-  Tv,
+  Share2,
 } from 'lucide-react';
 
 const SUPPORT_EMAIL = 'cu.oezdemir@gmail.com';
@@ -64,21 +62,20 @@ const OKEY_RULES = [
 interface MainMenuProps {
   open: boolean;
   onClose: () => void;
-  // Extra rows shown only while a game is in progress (Game.tsx passes
-  // these) - kept optional so every other page can use the same menu
-  // without knowing about them.
-  onLeaveGame?: () => void;
-  tvBoardOpen?: boolean;
-  onToggleTvBoard?: () => void;
 }
 
 /**
- * The app's single menu, opened by the burger icon. Deliberately an overlay
- * on top of whatever page you're on rather than its own route: it never
- * navigates anywhere, so it can't drop you somewhere unexpected (like the
- * login screen) just for opening it.
+ * The app's general menu, opened by the burger icon on Home/Lobby/Profiles.
+ * Deliberately an overlay on top of whatever page you're on rather than its
+ * own route: it never navigates anywhere, so it can't drop you somewhere
+ * unexpected (like the login screen) just for opening it.
+ *
+ * NOT used inside an active game - see InGameMenu for that. A live hand
+ * needs a much shorter list (design, sound, leave), and reusing this full
+ * menu there would bury those under profile/rules/support rows that don't
+ * matter mid-game.
  */
-export default function MainMenu({ open, onClose, onLeaveGame, tvBoardOpen, onToggleTvBoard }: MainMenuProps) {
+export default function MainMenu({ open, onClose }: MainMenuProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { activeProfile } = useProfileStore();
@@ -90,11 +87,15 @@ export default function MainMenu({ open, onClose, onLeaveGame, tvBoardOpen, onTo
 
   if (!open) return null;
 
-  const inviteFriends = async () => {
+  // This shares the app itself (its plain landing page URL) - NOT an
+  // invite into the current table (that's the QR/code on the lobby screen).
+  // Named and worded to make that distinction clear, since "Freunde
+  // einladen" alone reads as "invite them to this game".
+  const shareApp = async () => {
     const url = window.location.origin;
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'Masa Oyunları', text: 'Spiel mit mir Okey!', url });
+        await navigator.share({ title: 'Masa Oyunları', text: 'Kennst du Masa Oyunları? Okey & mehr, mit der Familie spielen.', url });
         return;
       }
     } catch {
@@ -167,24 +168,6 @@ export default function MainMenu({ open, onClose, onLeaveGame, tvBoardOpen, onTo
           </button>
         </div>
 
-        {onLeaveGame && (
-          <Row
-            icon={<DoorOpen className="w-5 h-5" />}
-            label="Spiel Beenden"
-            sublabel="Ein Bot übernimmt deinen Platz"
-            onClick={onLeaveGame}
-          />
-        )}
-
-        {onToggleTvBoard && (
-          <Row
-            icon={<Tv className="w-5 h-5" />}
-            label="Öffentliches Spielfeld"
-            sublabel={tvBoardOpen ? 'Wird angezeigt' : 'Wie auf dem TV-Bildschirm'}
-            onClick={onToggleTvBoard}
-          />
-        )}
-
         {isFirebaseConfigured && activeProfile && (
           <Row
             icon={
@@ -251,10 +234,10 @@ export default function MainMenu({ open, onClose, onLeaveGame, tvBoardOpen, onTo
         />
 
         <Row
-          icon={<Users className="w-5 h-5" />}
-          label="Freunde einladen"
-          sublabel="Link zur App teilen"
-          onClick={inviteFriends}
+          icon={<Share2 className="w-5 h-5" />}
+          label="App weiterempfehlen"
+          sublabel="Nicht das Spiel - die App selbst teilen"
+          onClick={shareApp}
           right={copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-[var(--color-text-muted)]" />}
         />
 

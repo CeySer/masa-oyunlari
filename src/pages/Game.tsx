@@ -7,7 +7,7 @@ import { useUIStore } from '../store/uiStore';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { enterPresentationMode } from '../lib/presentation';
 import { useSoundStore } from '../store/soundStore';
-import MainMenu from '../components/MainMenu';
+import InGameMenu from '../components/InGameMenu';
 import OkeyBoard from '../components/OkeyBoard';
 import TavlaBoard from '../components/TavlaBoard';
 import { Bot, Trophy, RefreshCw, Menu } from 'lucide-react';
@@ -20,7 +20,6 @@ export default function Game() {
   const { activeProfile, profilesReady } = useProfileStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
   const playSound = useSoundStore((s) => s.play);
-  const [showTVOverlay, setShowTVOverlay] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Play a little fanfare exactly once per finished hand, not on every
@@ -202,66 +201,15 @@ export default function Game() {
 
       {/* Main Game Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto flex flex-col justify-between">
-        
-        {showTVOverlay ? (
-          /* Mini TV Board View inside Mobile Screen */
-          <div
-            className="rounded-3xl p-6 text-center space-y-6 flex-1 flex flex-col justify-center shadow-2xl"
-            style={{ background: 'var(--table-felt)', border: '2px solid var(--table-edge)' }}
-          >
-            <h2 className="text-xl font-bold" style={{ color: 'var(--color-text)' }}>
-              Öffentliches Spielfeld (TV View)
-            </h2>
-            <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-              {lobby.players.map((p: any, idx: number) => (
-                <div
-                  key={p.id}
-                  className="p-4 rounded-2xl border text-left"
-                  style={
-                    idx === publicGameState.turnIndex
-                      ? {
-                          background: 'color-mix(in srgb, var(--color-accent) 22%, transparent)',
-                          borderColor: 'var(--color-accent)',
-                        }
-                      : { background: 'rgba(0,0,0,0.22)', borderColor: 'var(--table-edge)' }
-                  }
-                >
-                  <div className="font-bold text-sm flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
-                    {p.isBot && <Bot className="w-4 h-4 text-[var(--color-accent)]" />}
-                    <span>{p.name}</span>
-                  </div>
-                  <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                    Punkte: {p.score}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={() => setShowTVOverlay(false)}
-              className="px-6 py-2.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text)] rounded-xl font-semibold text-xs border border-[var(--color-border-strong)] mx-auto"
-            >
-              Zurück zu meiner Hand
-            </button>
-          </div>
-        ) : lobby.gameType === 'tavla' ? (
-          <TavlaBoard lobbyId={id!} />
-        ) : (
-          <OkeyBoard lobbyId={id!} />
-        )}
-
+        {lobby.gameType === 'tavla' ? <TavlaBoard lobbyId={id!} /> : <OkeyBoard lobbyId={id!} />}
       </main>
 
-      <MainMenu
+      <InGameMenu
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
         onLeaveGame={() => {
           setMenuOpen(false);
           handleLeaveGame();
-        }}
-        tvBoardOpen={showTVOverlay}
-        onToggleTvBoard={() => {
-          setMenuOpen(false);
-          setShowTVOverlay((v) => !v);
         }}
       />
     </div>
