@@ -192,6 +192,12 @@ interface Lobby {
   // is actually played. Needs exactly four players; see teamOfSeat below for
   // how that seating turns into teams, and declare_win for the scoring.
   teamMode?: boolean;
+  // Okey only: how well the bots play. 'easy' still never throws away a
+  // joker or misses a free win (that's basic correctness, not a skill
+  // setting) but otherwise draws/discards close to at random. 'hard' also
+  // values keeping tiles that are close to completing a run/set and holds
+  // onto pairs. Defaults to 'easy' for lobbies created before this existed.
+  botDifficulty?: 'easy' | 'hard';
   // The Firebase uid that created this lobby (when authRequired) - lets
   // other profiles under the SAME account discover an open lobby without
   // needing the code/link (see broadcastAccountLobbyStatus/subscribe_account).
@@ -664,6 +670,74 @@ function checkAndTriggerBotTurn(lobby: Lobby) {
   }, BOT_TURN_DELAY_MS);
 }
 
+// --- Bot AI -----------------------------------------------------------
+// Two knobs decide how a bot plays a hand (see Lobby.botDifficulty): 'easy'
+// bots draw and discard close to at random, 'hard' bots keep track of
+// which tiles are actually useful. Both levels share two rules that are
+// about correctness rather than skill, and always apply regardless of
+// difficulty: never sit on a hand that has already won (see
+// executeOkeyBotDiscard's findWinningDiscard check), and never voluntarily
+// throw away a joker - handing an opponent the single strongest tile in
+// the game is close to the worst move in Okey, not a beginner mistake to
+// imitate.
+
+/**
+ * Rough measure of how useful `tile` still is for building a run or set
+ * with the rest of the hand: a same-colour tile one or two steps away
+ * helps a run, a same-value tile of another colour helps a set. Higher
+ * means more useful to keep - this only needs to rank a hand's tiles
+ * against each other, not be a perfect evaluation.
+ */
+function tileConnectivity(tile: OkeyTile, hand: OkeyTile[]): number {
+  let score = 0;
+  for (const other of hand) {
+    if (other.id === tile.id) continue;
+    if (other.color === tile.color) {
+      const dist = Math.abs(other.value - tile.value);
+      if (dist === 1) score += 2;
+      else if (dist === 2) score += 1;
+    } else if (other.value === tile.value) {
+      score += 2;
+    }
+  }
+  return score;
+}
+
+/** Index into a 15-tile hand of the tile the bot should throw away. */
+function pickBotDiscardIndex(hand: OkeyTile[], indicator: OkeyTile | null, difficulty: 'easy' | 'hard'): number {
+  const keepable = hand.map((_, i) => i).filter(i => !isJokerTile(hand[i], indicator));
+  // Every tile being a joker can't happen in a legal hand, but fall back
+  // to the full hand rather than throw if it somehow did.
+  const candidates = keepable.length > 0 ? keepable : hand.map((_, i) => i);
+
+  if (difficulty === 'easy') {
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  let bestIdxs: number[] = [];
+  let bestScore = Infinity;
+  for (const i of candidates) {
+    const score = tileConnectivity(hand[i], hand);
+    if (score < bestScore) {
+      bestScore = score;
+      bestIdxs = [i];
+    } else if (score === bestScore) {
+      bestIdxs.push(i);
+    }
+  }
+  return bestIdxs[Math.floor(Math.random() * bestIdxs.length)];
+}
+
+/** Whether the bot should pick up the top discard instead of drawing blind. */
+function shouldTakeDiscard(topDiscard: OkeyTile, hand: OkeyTile[], difficulty: 'easy' | 'hard'): boolean {
+  const matches = hand.some(t => t.value === topDiscard.value || t.color === topDiscard.color);
+  if (!matches) return false;
+  if (difficulty === 'easy') return Math.random() > 0.3;
+  // Hard bots weigh how useful the tile would actually be instead of just
+  // noticing that some match exists.
+  return tileConnectivity(topDiscard, hand) >= 2 || Math.random() > 0.5;
+}
+
 function executeOkeyBotTurn(lobby: Lobby, botPlayer: Player) {
   const gs = lobby.gameState;
   if (!gs || lobby.status !== 'playing') return;
@@ -688,14 +762,13 @@ function executeOkeyBotTurn(lobby: Lobby, botPlayer: Player) {
     const prevDiscard = prevPlayer ? gs.discardPiles[prevPlayer.id] : null;
     const topDiscard = prevDiscard && prevDiscard.length > 0 ? prevDiscard[prevDiscard.length - 1] : null;
 
+    const difficulty: 'easy' | 'hard' = lobby.botDifficulty === 'hard' ? 'hard' : 'easy';
+
     let drewFromDiscard = false;
-    if (topDiscard && topDiscard.color !== 'fake') {
-      const match = hand.some(t => t.value === topDiscard.value || t.color === topDiscard.color);
-      if (match && Math.random() > 0.3) {
-        hand.push(prevDiscard.pop());
-        drewFromDiscard = true;
-        addLog(lobby, `📥 ${botPlayer.name} hat einen Stein vom Ablagestapel genommen.`);
-      }
+    if (topDiscard && topDiscard.color !== 'fake' && shouldTakeDiscard(topDiscard, hand, difficulty)) {
+      hand.push(prevDiscard.pop());
+      drewFromDiscard = true;
+      addLog(lobby, `📥 ${botPlayer.name} hat einen Stein vom Ablagestapel genommen.`);
     }
 
     if (!drewFromDiscard) {
@@ -703,9 +776,7 @@ function executeOkeyBotTurn(lobby: Lobby, botPlayer: Player) {
         hand.push(gs.pile.pop());
         addLog(lobby, `📥 ${botPlayer.name} hat einen Stein vom Stapel gezogen.`);
       } else {
-        addLog(lobby, `⚠️ Keine Steine mehr auf dem Stapel!`);
-        lobby.status = 'finished';
-        broadcastGameState(lobby);
+        endRoundPileEmpty(lobby, lobby.id);
         return;
       }
     }
@@ -731,11 +802,19 @@ function executeOkeyBotDiscard(lobby: Lobby, botPlayer: Player) {
   const hand = gs.hands[botPlayer.id];
   if (!hand || hand.length < 15) return;
 
-  // Pick candidate to discard: fake okey or orphan tile
-  let discardIndex = hand.findIndex(t => t.color === 'fake');
-  if (discardIndex === -1) {
-    discardIndex = Math.floor(Math.random() * hand.length);
+  // A bot never sits on a hand that has already won - if any discard
+  // completes a valid hand, take it, exactly like a human's "Okey über
+  // Stein werfen" auto-win in discard_tile.
+  const winningDiscard = findWinningDiscard(hand, gs.indicator);
+  if (winningDiscard) {
+    const idx = hand.findIndex(t => t.id === winningDiscard.tile.id);
+    const tile = hand.splice(idx, 1)[0];
+    finishHandWithWin(lobby, lobby.id, botPlayer, tile, winningDiscard.type);
+    return;
   }
+
+  const difficulty: 'easy' | 'hard' = lobby.botDifficulty === 'hard' ? 'hard' : 'easy';
+  const discardIndex = pickBotDiscardIndex(hand, gs.indicator, difficulty);
 
   const discardedTile = hand.splice(discardIndex, 1)[0];
   if (!gs.discardPiles[botPlayer.id]) {
@@ -746,6 +825,13 @@ function executeOkeyBotDiscard(lobby: Lobby, botPlayer: Player) {
 
   // Advance turn
   gs.turnIndex = (gs.turnIndex + 1) % lobby.players.length;
+
+  // Nobody can draw anymore - end the round right here, exactly like the
+  // human discard path.
+  if (gs.pile.length === 0) {
+    endRoundPileEmpty(lobby, lobby.id);
+    return;
+  }
 
   broadcastGameState(lobby);
   checkAndTriggerBotTurn(lobby);
@@ -1024,7 +1110,7 @@ io.on('connection', (socket) => {
     io.to(lobbyId).emit('lobby_updated', lobby);
   });
 
-  socket.on('create_lobby', async ({ gameType, name, idToken, profileId, scoringEnabled, teamMode }, callback) => {
+  socket.on('create_lobby', async ({ gameType, name, idToken, profileId, scoringEnabled, teamMode, botDifficulty }, callback) => {
     const type = gameType === 'tavla' ? 'tavla' : 'okey';
 
     // Tavla still has too many open bugs to expose right now - keep it
@@ -1067,6 +1153,7 @@ io.on('connection', (socket) => {
     // Eşli Okey only makes sense with four seats - start_game fills any
     // empty ones with bots, so a team lobby always ends up 2 against 2.
     lobby.teamMode = type === 'okey' && teamMode === true;
+    lobby.botDifficulty = botDifficulty === 'hard' ? 'hard' : 'easy';
 
     // Auto-join host as player 1
     const hostPlayer: Player = {

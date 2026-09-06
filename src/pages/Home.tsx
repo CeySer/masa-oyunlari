@@ -36,6 +36,9 @@ export default function Home() {
   // Eşli Okey: 2 against 2, the players sitting opposite being partners.
   // Always four seats - empty ones get filled with bots on start.
   const [teamMode, setTeamMode] = useState(false);
+  // How well the bots play - only matters once any seat ends up bot-filled
+  // (a solo "Gegen Computer" game, or empty seats in an online lobby).
+  const [botDifficulty, setBotDifficulty] = useState<'easy' | 'hard'>('hard');
 
   useEffect(() => {
     if (!isFirebaseConfigured && !name) {
@@ -76,7 +79,7 @@ export default function Home() {
 
     socket?.emit(
       'create_lobby',
-      { gameType, name: trimmedName, idToken, profileId, scoringEnabled, teamMode },
+      { gameType, name: trimmedName, idToken, profileId, scoringEnabled, teamMode, botDifficulty },
       (res: any) => {
         if (res.success) {
           if (autoAddBots) {
@@ -382,6 +385,39 @@ export default function Home() {
                       className="w-5 h-5 flex-shrink-0 accent-[var(--color-accent)]"
                     />
                   </label>
+
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)' }}>
+                    <span className="text-sm">
+                      <span className="font-semibold">Computergegner</span>
+                      <span className="block text-[11px] text-[var(--color-text-muted)]">
+                        {botDifficulty === 'hard' ? 'Spielt clever - wirft nie den Joker weg.' : 'Spielt locker, für Einsteiger.'}
+                      </span>
+                    </span>
+                    <div className="flex rounded-lg overflow-hidden flex-shrink-0" style={{ border: '1px solid var(--color-border-strong)' }}>
+                      <button
+                        type="button"
+                        onClick={() => setBotDifficulty('easy')}
+                        className="px-3 py-1.5 text-xs font-bold transition"
+                        style={{
+                          background: botDifficulty === 'easy' ? 'var(--color-accent)' : 'transparent',
+                          color: botDifficulty === 'easy' ? 'var(--color-accent-contrast)' : 'var(--color-text-muted)',
+                        }}
+                      >
+                        Leicht
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBotDifficulty('hard')}
+                        className="px-3 py-1.5 text-xs font-bold transition"
+                        style={{
+                          background: botDifficulty === 'hard' ? 'var(--color-accent)' : 'transparent',
+                          color: botDifficulty === 'hard' ? 'var(--color-accent-contrast)' : 'var(--color-text-muted)',
+                        }}
+                      >
+                        Schwer
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
