@@ -41,9 +41,9 @@ interface GameState {
   winRejectedMessage: string | null;
   moveRejectedMessage: string | null;
   gostermeMessage: string | null;
-  // The reaction each player last sent, keyed by player id, with the time it
-  // arrived so the bubble can fade itself out again.
-  emotes: Record<string, { emote: string; at: number }>;
+  // The reaction each player last threw, keyed by player id, with the time
+  // it arrived so the stone can fade itself off the table again.
+  reactions: Record<string, { reaction: string; at: number }>;
   // Whether the game state you're currently in makes you eligible to
   // declare "Gösterme" right now (a tile matching the indicator, and you
   // haven't drawn yet this hand) - see server.ts's 'gosterme_eligible'.
@@ -62,12 +62,8 @@ interface GameState {
   clearMoveRejectedMessage: () => void;
   clearGostermeMessage: () => void;
   declareGosterme: (lobbyId: string) => void;
-  sendEmote: (lobbyId: string, emote: string) => void;
+  sendReaction: (lobbyId: string, reaction: string) => void;
 }
-
-// Kept in sync with ALLOWED_EMOTES in server.ts - anything else is ignored
-// by the server anyway.
-export const EMOTES = ['👍', '😂', '😮', '🎉'];
 
 export const useGameStore = create<GameState>((set, get) => ({
   socket: null,
@@ -81,7 +77,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   moveRejectedMessage: null,
   gostermeMessage: null,
   gostermeEligible: false,
-  emotes: {},
+  reactions: {},
   accountLobbies: {},
   connectSocket: () => {
     if (!get().socket) {
@@ -150,8 +146,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ gostermeEligible: eligible });
       });
 
-      socket.on('emote', ({ playerId, emote }: { playerId: string; emote: string }) => {
-        set((state) => ({ emotes: { ...state.emotes, [playerId]: { emote, at: Date.now() } } }));
+      socket.on('reaction', ({ playerId, reaction }: { playerId: string; reaction: string }) => {
+        set((state) => ({ reactions: { ...state.reactions, [playerId]: { reaction, at: Date.now() } } }));
       });
 
       // Real-time updates for lobbies opened by OTHER profiles under this
@@ -186,8 +182,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   clearWinRejectedMessage: () => set({ winRejectedMessage: null }),
   clearMoveRejectedMessage: () => set({ moveRejectedMessage: null }),
   clearGostermeMessage: () => set({ gostermeMessage: null }),
-  sendEmote: (lobbyId: string, emote: string) => {
-    get().socket?.emit('send_emote', { lobbyId, emote });
+  sendReaction: (lobbyId: string, reaction: string) => {
+    get().socket?.emit('send_reaction', { lobbyId, reaction });
   },
   declareGosterme: (lobbyId: string) => {
     const socket = get().socket;

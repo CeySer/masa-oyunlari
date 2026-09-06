@@ -145,12 +145,14 @@ const TURN_TIME_MS = Number(process.env.OKEY_TURN_MS) || 60000;
 // Someone who is offline shouldn't hold the table up for a full minute.
 const AWAY_TURN_TIME_MS = Number(process.env.OKEY_AWAY_TURN_MS) || 6000;
 
-// The only reactions players can send each other. A fixed list on purpose:
-// it keeps this a bit of fun between family members rather than a chat that
-// would need moderating - and nothing typed by a player ever reaches anyone.
-const ALLOWED_EMOTES = ['👍', '😂', '😮', '🎉'];
-const EMOTE_COOLDOWN_MS = 2000;
-const lastEmoteAt = new Map<string, number>();
+// The only reactions players can send each other - little Okey stones with
+// the calls you'd actually hear at a table (see src/lib/reactions.ts for how
+// they're drawn). A fixed list on purpose: it keeps this a bit of fun
+// between family members rather than a chat that would need moderating, and
+// nothing a player types ever reaches anyone else.
+const ALLOWED_REACTIONS = ['okey', 'bravo', 'hadi', 'cay', 'aman'];
+const REACTION_COOLDOWN_MS = 2000;
+const lastReactionAt = new Map<string, number>();
 
 interface Lobby {
   id: string;
@@ -1339,22 +1341,21 @@ io.on('connection', (socket) => {
     io.emit('leaderboard_updated', Object.values(globalLeaderboard));
   });
 
-  // Quick emoji reactions at the table (Clash-of-Clans style). Only the
-  // fixed set below is accepted - the client never gets to send arbitrary
-  // text, so there's no way to turn this into a chat box - and a short
-  // cooldown per player keeps anyone from spamming the table.
-  socket.on('send_emote', ({ lobbyId, emote }) => {
+  // Throwing a reaction stone onto the table. Only ids from the fixed list
+  // above are accepted, and a short cooldown per player stops anyone from
+  // burying the table in stones.
+  socket.on('send_reaction', ({ lobbyId, reaction }) => {
     const lobby = lobbies.get(lobbyId);
-    if (!lobby || !ALLOWED_EMOTES.includes(emote)) return;
+    if (!lobby || !ALLOWED_REACTIONS.includes(reaction)) return;
 
     const player = lobby.players.find(p => p.id === socket.id);
     if (!player) return;
 
-    const last = lastEmoteAt.get(socket.id) || 0;
-    if (Date.now() - last < EMOTE_COOLDOWN_MS) return;
-    lastEmoteAt.set(socket.id, Date.now());
+    const last = lastReactionAt.get(socket.id) || 0;
+    if (Date.now() - last < REACTION_COOLDOWN_MS) return;
+    lastReactionAt.set(socket.id, Date.now());
 
-    io.to(lobbyId).emit('emote', { playerId: player.id, name: player.name, emote });
+    io.to(lobbyId).emit('reaction', { playerId: player.id, name: player.name, reaction });
   });
 
   // Deals a new hand within the same match, keeping every player's running
