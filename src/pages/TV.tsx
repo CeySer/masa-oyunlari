@@ -167,7 +167,10 @@ export default function TV() {
     const maxRequired = lobby.gameType === 'tavla' ? 2 : 4;
 
     return (
-      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-between p-8 select-none font-sans">
+      // Padding kept modest so the whole setup screen (QR + seats) still
+      // fits a 720p TV without being cut off or needing a scroll nobody can
+      // perform with a remote.
+      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-between p-4 2xl:p-8 select-none font-sans">
 
         {/* Header */}
         <div className="w-full flex justify-start">
@@ -273,8 +276,10 @@ export default function TV() {
     const currentPlayer = lobby.players[publicGameState.turnIndex];
     const logs = publicGameState.logs || [];
 
+    // game-shell = fixed viewport height rather than min-height: nobody
+    // scrolls a TV, so the whole board has to fit on the screen by itself.
     return (
-      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] p-6 flex flex-col justify-between select-none font-sans">
+      <div className="game-shell bg-[var(--color-bg)] text-[var(--color-text)] p-3 2xl:p-6 flex flex-col justify-between select-none font-sans">
         
         {/* TV Top Bar */}
         <div className="flex items-center justify-between bg-[var(--color-surface)] border border-[var(--color-border)] px-8 py-4 rounded-2xl shadow-xl">
@@ -303,12 +308,12 @@ export default function TV() {
         </div>
 
         {/* Board View */}
-        <div className="flex-1 my-6 flex items-center justify-center relative">
+        <div className="flex-1 min-h-0 my-3 2xl:my-6 flex items-center justify-center relative">
           
           {publicGameState.gameType === 'okey' ? (
             /* Okey TV Layout */
             <div
-              className="w-full max-w-6xl h-full min-h-[460px] rounded-3xl p-8 relative flex flex-col items-center justify-center shadow-2xl"
+              className="w-full max-w-6xl h-full min-h-0 rounded-3xl p-4 2xl:p-8 relative flex flex-col items-center justify-center shadow-2xl"
               style={{ background: 'var(--table-felt)', border: '4px solid var(--table-edge)' }}
             >
               

@@ -38,9 +38,27 @@ const NUMERAL_SIZE_CLASSES: Record<TileSize, string> = {
   lg: 'text-3xl sm:text-4xl',
 };
 
+/**
+ * Sizes a tile off the board's measured tile unit (see useBoardScale) rather
+ * than a fixed breakpoint size: `scale` is a multiple of one rack tile, so
+ * 1 is a rack tile, 0.6 a small discard next to a name plaque. Everything on
+ * the table then grows and shrinks together and always fits the screen.
+ */
+function scaledStyle(scale: number) {
+  const w = `calc(var(--tile-w, 42px) * ${scale})`;
+  return {
+    width: w,
+    height: `calc(var(--tile-h, 58px) * ${scale})`,
+    borderRadius: `calc(${w} * 0.18)`,
+  };
+}
+
 interface OkeyTileProps {
   tile: OkeyTileData;
+  /** Fixed step size. Ignored when `scale` is given. */
   size?: TileSize;
+  /** Size relative to one rack tile - preferred, so the board stays fluid. */
+  scale?: number;
   selected?: boolean;
   dimmed?: boolean;
   className?: string;
@@ -49,17 +67,19 @@ interface OkeyTileProps {
 // The tile "stone" face: cream/ivory gradient body with a beveled, slightly
 // glossy look (like real bone/melamine Okey tiles) and an engraved-style
 // colored numeral - the color lives in the numeral, not the tile body.
-export function OkeyTile({ tile, size = 'md', selected, dimmed, className = '' }: OkeyTileProps) {
+export function OkeyTile({ tile, size = 'md', scale, selected, dimmed, className = '' }: OkeyTileProps) {
   const isJoker = tile.color === 'fake';
+  const fluid = typeof scale === 'number';
 
   return (
     <div
-      className={`relative flex flex-col items-center justify-center border ${SIZE_CLASSES[size]} ${
+      className={`relative flex flex-col items-center justify-center border ${fluid ? '' : SIZE_CLASSES[size]} ${
         selected
-          ? 'border-red-500 ring-2 sm:ring-4 ring-red-500/70 -translate-y-1.5 shadow-xl scale-105'
+          ? 'border-red-500 ring-2 ring-red-500/70 -translate-y-1 shadow-xl scale-105'
           : 'border-stone-300/80 shadow-md'
       } ${dimmed ? 'opacity-60' : ''} ${className}`}
       style={{
+        ...(fluid ? scaledStyle(scale!) : {}),
         background: 'linear-gradient(160deg, #fffaf0 0%, #f5ecd7 55%, #e8dcc0 100%)',
         boxShadow: selected
           ? undefined
@@ -70,10 +90,13 @@ export function OkeyTile({ tile, size = 'md', selected, dimmed, className = '' }
       <div className="absolute top-0.5 left-1 right-1 h-1/3 rounded-t-md bg-white/50 blur-[1px] pointer-events-none" />
 
       <span
-        className={`relative font-black tracking-tight leading-none drop-shadow-sm ${NUMERAL_SIZE_CLASSES[size]} ${tileNumeralColorClass(
-          tile.color
-        )}`}
-        style={{ textShadow: '0 1px 0 rgba(255,255,255,0.6), 0 -1px 0 rgba(0,0,0,0.15)' }}
+        className={`relative font-black tracking-tight leading-none drop-shadow-sm ${
+          fluid ? '' : NUMERAL_SIZE_CLASSES[size]
+        } ${tileNumeralColorClass(tile.color)}`}
+        style={{
+          textShadow: '0 1px 0 rgba(255,255,255,0.6), 0 -1px 0 rgba(0,0,0,0.15)',
+          ...(fluid ? { fontSize: `calc(var(--tile-w, 42px) * ${scale!} * 0.56)` } : {}),
+        }}
       >
         {isJoker ? '★' : tile.value}
       </span>
@@ -84,19 +107,29 @@ export function OkeyTile({ tile, size = 'md', selected, dimmed, className = '' }
 interface EmptyTileSlotProps {
   index: number;
   size?: TileSize;
+  scale?: number;
   className?: string;
 }
 
-export function EmptyOkeyTileSlot({ index, size = 'md', className = '' }: EmptyTileSlotProps) {
+export function EmptyOkeyTileSlot({ index, size = 'md', scale, className = '' }: EmptyTileSlotProps) {
+  const fluid = typeof scale === 'number';
+
   return (
     <div
-      className={`flex items-center justify-center border border-dashed ${SIZE_CLASSES[size]} ${className}`}
+      className={`flex items-center justify-center border border-dashed ${fluid ? '' : SIZE_CLASSES[size]} ${className}`}
       style={{
+        ...(fluid ? scaledStyle(scale!) : {}),
         background: 'var(--slot-empty)',
         borderColor: 'var(--slot-empty-border)',
       }}
     >
-      <span className="text-[8px] font-mono opacity-40" style={{ color: 'var(--color-text)' }}>
+      <span
+        className="font-mono opacity-40 leading-none"
+        style={{
+          color: 'var(--color-text)',
+          fontSize: fluid ? `max(7px, calc(var(--tile-w, 42px) * ${scale!} * 0.22))` : '8px',
+        }}
+      >
         {index + 1}
       </span>
     </div>

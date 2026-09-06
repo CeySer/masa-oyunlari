@@ -135,6 +135,16 @@ body {
   100% { opacity: 0; }
 }
 
+/* The in-game screen fills exactly one viewport and never scrolls: the board
+   inside it measures this height and sizes itself to fit (see useBoardScale).
+   dvh accounts for a mobile browser's collapsing address bar; the vh line
+   above it is the fallback for browsers without dvh. */
+.game-shell {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 /* A tile sliding/dropping into place as a fresh hand is dealt - each tile in
    the rack gets a small staggered animation-delay (see OkeyBoard.tsx) so
    they appear to land one after another instead of all at once. */
