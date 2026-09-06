@@ -3,25 +3,19 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore, type PlayerProfile } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
-import { Plus, Pencil, Trash2, LogOut, X } from 'lucide-react';
-
-const AVATAR_COLORS = ['#d4a24e', '#2dd4bf', '#e07a2e', '#8b5cf6', '#ef4444', '#22c55e'];
+import { Plus, Pencil, Trash2, LogOut } from 'lucide-react';
+import ProfileEditDialog, { AVATAR_COLORS } from '../components/ProfileEditDialog';
 
 export default function Profiles() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from || '/';
   const { user, authReady, logout } = useAuthStore();
-  const { profiles, profilesLoading, profilesError, loadProfiles, createProfile, updateProfile, deleteProfile, selectProfile } =
-    useProfileStore();
+  const { profiles, profilesLoading, profilesError, loadProfiles, deleteProfile, selectProfile } = useProfileStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formName, setFormName] = useState('');
-  const [formColor, setFormColor] = useState(AVATAR_COLORS[0]);
-  const [formError, setFormError] = useState('');
-  const [busy, setBusy] = useState(false);
+  // null = closed, 'new' = create, otherwise the profile being edited.
+  const [dialog, setDialog] = useState<'new' | PlayerProfile | null>(null);
 
   useEffect(() => {
     if (authReady && !user) navigate('/login', { state: { from: '/profiles' } });
@@ -31,49 +25,22 @@ export default function Profiles() {
     if (user) loadProfiles();
   }, [user]);
 
-  const openCreate = () => {
-    setEditingId(null);
-    setFormName('');
-    setFormColor(AVATAR_COLORS[profiles.length % AVATAR_COLORS.length]);
-    setFormError('');
-    setShowForm(true);
-  };
+  const openCreate = () => setDialog('new');
 
   const openEdit = (p: PlayerProfile, e: MouseEvent) => {
     e.stopPropagation();
-    setEditingId(p.id);
-    setFormName(p.name);
-    setFormColor(p.color);
-    setFormError('');
-    setShowForm(true);
+    setDialog(p);
   };
 
-  const submitForm = async () => {
-    const trimmed = formName.trim();
-    if (!trimmed) {
-      setFormError('Bitte einen Namen eingeben.');
-      return;
-    }
-    setBusy(true);
-    const res = editingId
-      ? await updateProfile(editingId, { name: trimmed, color: formColor })
-      : await createProfile(trimmed, formColor);
-    setBusy(false);
-    if (res.success) {
-      setShowForm(false);
-    } else {
-      setFormError(res.error || 'Das hat leider nicht geklappt.');
-    }
-  };
-
-  const handleDelete = async (p: PlayerProfile, e: MouseEvent) => {
-    e.stopPropagation();
+  const handleDelete = async (p: PlayerProfile, e?: MouseEvent) => {
+    e?.stopPropagation();
     const ok = await showConfirm(`"${p.name}" wirklich löschen? Die Statistik dieses Profils geht dabei verloren.`, {
       confirmLabel: 'Löschen',
       danger: true,
     });
     if (!ok) return;
     await deleteProfile(p.id);
+    setDialog(null);
   };
 
   const handleSelect = (p: PlayerProfile) => {
@@ -181,88 +148,15 @@ export default function Profiles() {
         </div>
       </main>
 
-      {showForm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.6)' }}
-          onClick={() => setShowForm(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl"
-            style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-lg">{editingId ? 'Profil bearbeiten' : 'Neues Profil'}</h2>
-              <button onClick={() => setShowForm(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Name</label>
-              <input
-                type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                maxLength={24}
-                autoFocus
-                className="w-full px-4 py-3 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition"
-                placeholder="z.B. Ahmet"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Farbe</label>
-              <div className="flex gap-2.5">
-                {AVATAR_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setFormColor(c)}
-                    className="w-8 h-8 rounded-full transition-transform"
-                    style={{
-                      background: c,
-                      transform: formColor === c ? 'scale(1.2)' : 'scale(1)',
-                      boxShadow: formColor === c ? `0 0 0 2px var(--color-surface), 0 0 0 4px ${c}` : 'none',
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {formError && (
-              <p className="text-xs" style={{ color: 'var(--color-accent)' }}>
-                {formError}
-              </p>
-            )}
-
-            <div className="flex gap-3 pt-1">
-              {editingId && (
-                <button
-                  onClick={(e) => {
-                    const p = profiles.find((pr) => pr.id === editingId);
-                    if (p) handleDelete(p, e as any);
-                    setShowForm(false);
-                  }}
-                  className="px-4 py-2.5 rounded-xl text-sm font-semibold border transition"
-                  style={{ borderColor: 'var(--color-border-strong)', color: '#ef4444' }}
-                >
-                  Löschen
-                </button>
-              )}
-              <button
-                onClick={submitForm}
-                disabled={busy}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition disabled:opacity-60"
-                style={{ background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
-              >
-                {editingId ? 'Speichern' : 'Profil anlegen'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {dialog && (
+        <ProfileEditDialog
+          profile={dialog === 'new' ? undefined : dialog}
+          defaultColor={AVATAR_COLORS[profiles.length % AVATAR_COLORS.length]}
+          onClose={() => setDialog(null)}
+          onDelete={dialog === 'new' ? undefined : () => handleDelete(dialog)}
+        />
       )}
+
     </div>
   );
 }

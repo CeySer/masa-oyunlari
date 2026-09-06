@@ -120,3 +120,10 @@ body {
 .animate-tile-drift {
   animation: tile-drift 6s ease-in-out infinite;
 }
+
+/* Emoji reaction popping up over a player's seat */
+@keyframes emote-pop {
+  0% { transform: translate(-50%, 6px) scale(0.4); opacity: 0; }
+  70% { transform: translate(-50%, -2px) scale(1.15); opacity: 1; }
+  100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+}

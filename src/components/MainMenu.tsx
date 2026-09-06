@@ -1,21 +1,25 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useProfileStore } from '../store/profileStore';
 import { useSoundStore } from '../store/soundStore';
 import { useUIStore } from '../store/uiStore';
-import ThemeSwitcher from '../components/ThemeSwitcher';
+import ProfileEditDialog from './ProfileEditDialog';
+import ThemeSwitcher from './ThemeSwitcher';
+import { isFirebaseConfigured } from '../lib/firebase';
 import {
-  ArrowLeft,
   Volume2,
   VolumeX,
   BookOpen,
   Users,
   MessageCircleQuestion,
+  Pencil,
   UserCog,
   LogOut,
   X,
   Copy,
   Check,
+  Palette,
 } from 'lucide-react';
 
 const SUPPORT_EMAIL = 'cu.oezdemir@gmail.com';
@@ -46,29 +50,47 @@ const OKEY_RULES = [
     text: 'Hast du direkt beim Austeilen einen Stein bekommen, der identisch zum Anzeige-Stein ist, kannst du das vor deinem ersten Ziehen zeigen - jeder Gegner verliert dafür 1 Punkt.',
   },
   {
+    title: 'Zug-Timer',
+    text: 'Sobald mehrere Menschen am Tisch sitzen, läuft pro Zug eine Uhr - der Balken unter dem Namen zeigt sie an. Läuft sie ab, spielt der Computer diesen einen Zug. Wer die Verbindung verliert, behält seinen Platz: der Computer überbrückt nur, bis er wieder da ist.',
+  },
+  {
     title: 'Punkte',
     text: 'Mit Punktesystem starten alle bei 20 Punkten. Ein normaler Sieg kostet jedem Gegner 2 Punkte, ein Sieg mit 7 Paaren oder durch Abwerfen des Okey-Steins kostet 4 Punkte. Das Match endet, sobald jemand bei 0 oder darunter liegt - die zwei mit den meisten Punkten gewinnen dann das Match. Ohne Punktesystem spielt ihr einfach Runde für Runde, ohne Punkteverlust.',
   },
 ];
 
-export default function Settings() {
+interface MainMenuProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+/**
+ * The app's single menu, opened by the burger icon. Deliberately an overlay
+ * on top of whatever page you're on rather than its own route: it never
+ * navigates anywhere, so it can't drop you somewhere unexpected (like the
+ * login screen) just for opening it.
+ */
+export default function MainMenu({ open, onClose }: MainMenuProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { activeProfile } = useProfileStore();
   const { enabled: soundEnabled, toggle: toggleSound } = useSoundStore();
   const showToast = useUIStore((s) => s.showToast);
   const [showRules, setShowRules] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  if (!open) return null;
 
   const inviteFriends = async () => {
     const url = window.location.origin;
-    const shareData = { title: 'Masa Oyunları', text: 'Spiel mit mir Okey & Tavla in Echtzeit!', url };
     try {
       if (navigator.share) {
-        await navigator.share(shareData);
+        await navigator.share({ title: 'Masa Oyunları', text: 'Spiel mit mir Okey!', url });
         return;
       }
     } catch {
-      // user cancelled the share sheet or it's unsupported - fall through to copy
+      // share sheet cancelled or unsupported - fall through to copying
     }
     try {
       await navigator.clipboard.writeText(url);
@@ -81,8 +103,7 @@ export default function Settings() {
   };
 
   const openSupport = () => {
-    const subject = encodeURIComponent('Masa Oyunları - Feedback');
-    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}`;
+    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Masa Oyunları - Feedback')}`;
   };
 
   const Row = ({
@@ -118,25 +139,55 @@ export default function Settings() {
   );
 
   return (
-    <div
-      className="min-h-screen flex flex-col p-4 sm:p-6 font-sans"
-      style={{
-        color: 'var(--color-text)',
-        background:
-          'radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 55%), var(--color-bg)',
-      }}
-    >
-      <header className="max-w-xl w-full mx-auto flex items-center gap-3 py-4 border-b border-[var(--color-border)]">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-2 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] transition"
-        >
-          <ArrowLeft className="w-4 h-4 text-[var(--color-text-muted)]" />
-        </button>
-        <h1 className="text-lg font-black">Einstellungen</h1>
-      </header>
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-50" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onClose} />
 
-      <main className="max-w-xl w-full mx-auto my-auto py-8 space-y-3">
+      {/* Slide-in panel */}
+      <aside
+        className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-sm overflow-y-auto p-4 space-y-3 shadow-2xl"
+        style={{ background: 'var(--color-surface)', borderLeft: '1px solid var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between pb-3 mb-1 border-b border-[var(--color-border)]">
+          <h2 className="text-lg font-black">Menü</h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl transition"
+            style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)' }}
+          >
+            <X className="w-4 h-4 text-[var(--color-text-muted)]" />
+          </button>
+        </div>
+
+        {isFirebaseConfigured && activeProfile && (
+          <Row
+            icon={
+              <span
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white"
+                style={{ background: activeProfile.color }}
+              >
+                {activeProfile.name.slice(0, 1).toUpperCase()}
+              </span>
+            }
+            label="Profil bearbeiten"
+            sublabel={`${activeProfile.name} · ${activeProfile.elo} Elo`}
+            onClick={() => setEditingProfile(true)}
+            right={<Pencil className="w-4 h-4 text-[var(--color-text-muted)]" />}
+          />
+        )}
+
+        {isFirebaseConfigured && (
+          <Row
+            icon={<UserCog className="w-5 h-5" />}
+            label="Profil wechseln"
+            sublabel="Anderes Familienmitglied"
+            onClick={() => {
+              onClose();
+              navigate('/profiles', { state: { from: window.location.pathname } });
+            }}
+          />
+        )}
+
         <Row
           icon={soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           label="Sound"
@@ -155,9 +206,12 @@ export default function Settings() {
           }
         />
 
-        <div className="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)' }}>
+        <div
+          className="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl"
+          style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)' }}
+        >
           <span className="flex items-center gap-3">
-            <span style={{ color: 'var(--color-accent)' }}>🎨</span>
+            <Palette className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
             <span className="font-semibold text-sm">Design</span>
           </span>
           <ThemeSwitcher />
@@ -166,15 +220,8 @@ export default function Settings() {
         <Row
           icon={<BookOpen className="w-5 h-5" />}
           label="Spielregeln & Tutorial"
-          sublabel="Okey-Regeln, Punktesystem, Joker"
+          sublabel="Regeln, Joker, Punkte, Timer"
           onClick={() => setShowRules(true)}
-        />
-
-        <Row
-          icon={<UserCog className="w-5 h-5" />}
-          label="Profile verwalten"
-          sublabel="Namen, Farbe, Statistik"
-          onClick={() => navigate('/profiles')}
         />
 
         <Row
@@ -192,17 +239,18 @@ export default function Settings() {
           onClick={openSupport}
         />
 
-        <Row
-          icon={<LogOut className="w-5 h-5" />}
-          label="Abmelden"
-          sublabel={user?.email || undefined}
-          onClick={() => logout()}
-        />
-      </main>
+        {isFirebaseConfigured && user && (
+          <Row icon={<LogOut className="w-5 h-5" />} label="Abmelden" sublabel={user.email || undefined} onClick={() => logout()} />
+        )}
+      </aside>
+
+      {editingProfile && activeProfile && (
+        <ProfileEditDialog profile={activeProfile} onClose={() => setEditingProfile(false)} />
+      )}
 
       {showRules && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4"
           style={{ background: 'rgba(0,0,0,0.6)' }}
           onClick={() => setShowRules(false)}
         >
@@ -211,7 +259,10 @@ export default function Settings() {
             className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-6 space-y-5 shadow-2xl"
             style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
           >
-            <div className="flex items-center justify-between sticky -top-6 pt-1 pb-2 -mx-6 px-6" style={{ background: 'var(--color-surface)' }}>
+            <div
+              className="flex items-center justify-between sticky -top-6 pt-1 pb-2 -mx-6 px-6"
+              style={{ background: 'var(--color-surface)' }}
+            >
               <h2 className="font-bold text-lg">Okey - Spielregeln</h2>
               <button onClick={() => setShowRules(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
                 <X className="w-5 h-5" />
@@ -233,6 +284,6 @@ export default function Settings() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

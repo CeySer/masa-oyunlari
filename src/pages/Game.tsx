@@ -7,9 +7,10 @@ import { useUIStore } from '../store/uiStore';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { enterPresentationMode } from '../lib/presentation';
 import { useSoundStore } from '../store/soundStore';
+import MainMenu from '../components/MainMenu';
 import OkeyBoard from '../components/OkeyBoard';
 import TavlaBoard from '../components/TavlaBoard';
-import { Tv, ArrowLeft, LogOut, Bot, Trophy, RefreshCw, Maximize } from 'lucide-react';
+import { Tv, ArrowLeft, LogOut, Bot, Trophy, RefreshCw, Maximize, Menu } from 'lucide-react';
 
 export default function Game() {
   const { id } = useParams();
@@ -20,6 +21,7 @@ export default function Game() {
   const showConfirm = useUIStore((s) => s.showConfirm);
   const playSound = useSoundStore((s) => s.play);
   const [showTVOverlay, setShowTVOverlay] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Play a little fanfare exactly once per finished hand, not on every
   // re-render while the result screen stays up.
@@ -219,6 +221,13 @@ export default function Game() {
             <Tv className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
             <span className="hidden sm:inline">{showTVOverlay ? 'Hand' : 'TV-Brett'}</span>
           </button>
+          <button
+            onClick={() => setMenuOpen(true)}
+            title="Menü"
+            className="p-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-xl border border-[var(--color-border-strong)]"
+          >
+            <Menu className="w-3.5 h-3.5" />
+          </button>
         </div>
       </header>
 
@@ -273,6 +282,7 @@ export default function Game() {
 
       </main>
 
+      <MainMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
   );
 }

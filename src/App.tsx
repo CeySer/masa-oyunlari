@@ -11,7 +11,6 @@ import Game from './pages/Game';
 import TV from './pages/TV';
 import Login from './pages/Login';
 import Profiles from './pages/Profiles';
-import Settings from './pages/Settings';
 import ToastHost from './components/ToastHost';
 import ConfirmHost from './components/ConfirmHost';
 import { useEffect } from 'react';
@@ -98,14 +97,6 @@ export default function App() {
             element={
               <RequireAuth>
                 <Profiles />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <RequireAuth>
-                <Settings />
               </RequireAuth>
             }
           />

@@ -4,9 +4,10 @@ import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
-import { Play, Tv, Trophy, Bot, Dices, Layers, Settings as SettingsIcon, MailWarning, Pencil, Users } from 'lucide-react';
+import { Play, Tv, Trophy, Bot, Dices, Layers, Menu, MailWarning, Pencil, Users } from 'lucide-react';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { enterPresentationMode } from '../lib/presentation';
+import MainMenu from '../components/MainMenu';
 
 const GAMES = [
   { id: 'okey' as const, name: 'Okey', subtitle: 'Klasik Taş Oyunu', players: '2–4 Spieler', icon: Layers, disabled: false },
@@ -28,6 +29,7 @@ export default function Home() {
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [joinCode, setJoinCode] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
   // Traditional Okey scoring (20 points, match runs until someone hits 0) on
   // by default - can be switched off for a casual "just play hands" session.
   const [scoringEnabled, setScoringEnabled] = useState(true);
@@ -157,11 +159,11 @@ export default function Home() {
             </button>
           )}
           <button
-            onClick={() => navigate('/settings')}
-            title="Einstellungen"
+            onClick={() => setMenuOpen(true)}
+            title="Menü"
             className="p-2 rounded-lg border transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text-muted)]"
           >
-            <SettingsIcon className="w-4 h-4" />
+            <Menu className="w-4 h-4" />
           </button>
         </div>
       </header>
@@ -445,6 +447,8 @@ export default function Home() {
           </span>
         ))}
       </footer>
+
+      <MainMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
   );
 }

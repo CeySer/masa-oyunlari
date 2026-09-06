@@ -6,8 +6,9 @@ import { useProfileStore } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { QRCodeSVG } from 'qrcode.react';
-import { Users, Play, Bot, UserPlus, Copy, Check, Tv, Trash2 } from 'lucide-react';
+import { Users, Play, Bot, UserPlus, Copy, Check, Tv, Trash2, Menu } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
+import MainMenu from '../components/MainMenu';
 import { enterPresentationMode } from '../lib/presentation';
 
 export default function Lobby() {
@@ -19,6 +20,7 @@ export default function Lobby() {
   const showToast = useUIStore((s) => s.showToast);
   const [name, setName] = useState(localStorage.getItem('playerName') || '');
   const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const attemptJoin = async () => {
     if (!socket || !id) return;
@@ -122,6 +124,13 @@ export default function Lobby() {
           >
             <Tv className="w-4 h-4 text-[var(--color-text-muted)]" />
             <span>TV-Modus</span>
+          </button>
+          <button
+            onClick={() => setMenuOpen(true)}
+            title="Menü"
+            className="p-2 rounded-lg bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] border border-[var(--color-border-strong)] text-[var(--color-text-muted)]"
+          >
+            <Menu className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -237,6 +246,8 @@ export default function Lobby() {
         </div>
 
       </main>
+
+      <MainMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
   );
 }

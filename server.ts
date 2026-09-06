@@ -145,6 +145,13 @@ const TURN_TIME_MS = Number(process.env.OKEY_TURN_MS) || 60000;
 // Someone who is offline shouldn't hold the table up for a full minute.
 const AWAY_TURN_TIME_MS = Number(process.env.OKEY_AWAY_TURN_MS) || 6000;
 
+// The only reactions players can send each other. A fixed list on purpose:
+// it keeps this a bit of fun between family members rather than a chat that
+// would need moderating - and nothing typed by a player ever reaches anyone.
+const ALLOWED_EMOTES = ['👍', '😂', '😮', '🎉'];
+const EMOTE_COOLDOWN_MS = 2000;
+const lastEmoteAt = new Map<string, number>();
+
 interface Lobby {
   id: string;
   host: string;
@@ -1330,6 +1337,24 @@ io.on('connection', (socket) => {
     io.to(lobbyId).emit('lobby_updated', lobby);
     io.to(lobbyId).emit('game_ended', { winner, players: lobby.players, winType, pointsLost, matchOver, matchWinners });
     io.emit('leaderboard_updated', Object.values(globalLeaderboard));
+  });
+
+  // Quick emoji reactions at the table (Clash-of-Clans style). Only the
+  // fixed set below is accepted - the client never gets to send arbitrary
+  // text, so there's no way to turn this into a chat box - and a short
+  // cooldown per player keeps anyone from spamming the table.
+  socket.on('send_emote', ({ lobbyId, emote }) => {
+    const lobby = lobbies.get(lobbyId);
+    if (!lobby || !ALLOWED_EMOTES.includes(emote)) return;
+
+    const player = lobby.players.find(p => p.id === socket.id);
+    if (!player) return;
+
+    const last = lastEmoteAt.get(socket.id) || 0;
+    if (Date.now() - last < EMOTE_COOLDOWN_MS) return;
+    lastEmoteAt.set(socket.id, Date.now());
+
+    io.to(lobbyId).emit('emote', { playerId: player.id, name: player.name, emote });
   });
 
   // Deals a new hand within the same match, keeping every player's running

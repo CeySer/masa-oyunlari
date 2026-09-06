@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, type DragEvent } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, EMOTES } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { useSoundStore } from '../store/soundStore';
-import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles, Wand2, Bot, WifiOff } from 'lucide-react';
+import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles, Wand2, Bot, WifiOff, Smile } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 
 interface Tile {
@@ -16,6 +16,8 @@ interface OkeyBoardProps {
 }
 
 const TOTAL_SLOTS = 30; // 2 rows of 15 slots
+// How long a sent reaction stays up over the sender's seat.
+const EMOTE_VISIBLE_MS = 4000;
 
 export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   const {
@@ -29,6 +31,8 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     gostermeMessage,
     clearGostermeMessage,
     declareGosterme,
+    emotes,
+    sendEmote,
   } = useGameStore();
   const showToast = useUIStore((s) => s.showToast);
   const playSound = useSoundStore((s) => s.play);
@@ -78,6 +82,29 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         />
       </span>
     ) : null;
+
+  // Emoji reactions: a bubble pops up over whoever sent one and fades after
+  // a few seconds. The `now` clock above already ticks while a turn is
+  // running; this one keeps bubbles disappearing even between turns.
+  const [emotePickerOpen, setEmotePickerOpen] = useState(false);
+  const [, setEmoteClock] = useState(0);
+  const hasFreshEmote = Object.values(emotes).some((e) => Date.now() - e.at < EMOTE_VISIBLE_MS);
+  useEffect(() => {
+    if (!hasFreshEmote) return;
+    const id = setInterval(() => setEmoteClock((c) => c + 1), 400);
+    return () => clearInterval(id);
+  }, [hasFreshEmote]);
+
+  const emoteFor = (playerId: string) => {
+    const entry = emotes[playerId];
+    if (!entry || Date.now() - entry.at > EMOTE_VISIBLE_MS) return null;
+    return entry.emote;
+  };
+
+  const handleSendEmote = (emote: string) => {
+    sendEmote(lobbyId, emote);
+    setEmotePickerOpen(false);
+  };
 
   // Touch drag tracking
   const touchStartSlotRef = useRef<number | null>(null);
@@ -456,7 +483,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         onClick={takeable ? handleDrawDiscard : undefined}
         disabled={!takeable}
         title={takeable ? `Stein von ${p.name} aufnehmen` : p.name}
-        className={`min-w-0 flex ${
+        className={`relative min-w-0 flex ${
           compact ? 'flex-row items-center gap-2 px-2 py-1' : 'flex-1 flex-col items-center gap-0.5 px-1.5 py-1'
         } rounded-xl transition disabled:cursor-default ${takeable ? 'cursor-pointer active:scale-[0.97]' : ''}`}
         style={{
@@ -473,6 +500,16 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           boxShadow: takeable ? '0 0 0 2px color-mix(in srgb, var(--color-accent) 40%, transparent)' : undefined,
         }}
       >
+        {/* Reaction this player just sent */}
+        {emoteFor(p.id) && (
+          <span
+            className="absolute -top-3 left-1/2 -translate-x-1/2 text-xl drop-shadow-lg pointer-events-none"
+            style={{ animation: 'emote-pop 260ms ease-out' }}
+          >
+            {emoteFor(p.id)}
+          </span>
+        )}
+
         {discard ? (
           <OkeyTile tile={discard} size="xs" />
         ) : (
@@ -597,7 +634,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           <span>Gösterme zeigen (-1 Punkt für alle Gegner)</span>
         </button>
       )}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
         <button
           onClick={() => handleDiscard()}
           disabled={!isMyTurn || !iHaveDrawn || !selectedTile}
@@ -615,6 +652,38 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           <Trophy className="w-3.5 h-3.5 text-amber-300" />
           <span className="truncate">Okey Gewinnen</span>
         </button>
+
+        {/* Quick reactions - a fixed set, no free text */}
+        <div className="relative">
+          <button
+            onClick={() => setEmotePickerOpen((o) => !o)}
+            title="Reaktion senden"
+            className="h-full px-2.5 rounded-xl transition active:scale-95"
+            style={{ background: 'var(--table-inset)', border: '1px solid var(--table-edge)' }}
+          >
+            <Smile className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+          </button>
+
+          {emotePickerOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setEmotePickerOpen(false)} />
+              <div
+                className="absolute bottom-full right-0 mb-2 z-50 flex gap-1 p-1.5 rounded-2xl shadow-2xl"
+                style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border-strong)' }}
+              >
+                {EMOTES.map((e) => (
+                  <button
+                    key={e}
+                    onClick={() => handleSendEmote(e)}
+                    className="text-2xl leading-none px-2 py-1 rounded-xl transition active:scale-90 hover:scale-110"
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -652,7 +721,15 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         className="rounded-2xl sm:rounded-3xl p-2 sm:p-3 shadow-2xl relative flex-shrink-0"
         style={{ background: 'var(--rack-wood)', border: '2px solid var(--rack-wood-edge)' }}
       >
-        <div className="flex items-center justify-between mb-1.5 px-1">
+        <div className="relative flex items-center justify-between mb-1.5 px-1">
+          {emoteFor(socket?.id || '') && (
+            <span
+              className="absolute -top-6 left-1/2 -translate-x-1/2 text-2xl drop-shadow-lg pointer-events-none"
+              style={{ animation: 'emote-pop 260ms ease-out' }}
+            >
+              {emoteFor(socket?.id || '')}
+            </span>
+          )}
           <div className="flex items-center gap-1.5 sm:gap-2">
             <span
               className="text-xs sm:text-sm font-black uppercase tracking-wider"
