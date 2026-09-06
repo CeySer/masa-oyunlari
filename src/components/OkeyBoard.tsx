@@ -771,39 +771,52 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       style={{ ...(vars as CSSProperties), gap: sp(6, 4) }}
     >
       {/* ---------- THE TABLE ---------- */}
-      {/* A rectangular table like a real one: the player opposite across the
-          top, the other two left and right, the pile and indicator in the
-          middle, my own controls at my edge. Laid out as a 3x3 grid so the
-          seats, the centre and the controls each own their band and can
-          never overlap, however short the screen is. The table takes
-          whatever height is left after the rack - it never pushes the page
-          taller, so nothing can scroll out of view. */}
-      <div
-        className="grid flex-1 min-h-0 rounded-2xl shadow-xl overflow-hidden"
-        style={{
-          background: 'var(--table-felt)',
-          border: '2px solid var(--table-edge)',
-          padding: sp(6, 4),
-          gap: sp(4, 3),
-          gridTemplateColumns: 'auto minmax(0, 1fr) auto',
-          gridTemplateRows: 'auto minmax(0, 1fr) auto',
-        }}
-      >
-        <div className="col-start-2 row-start-1 flex items-start justify-center">
-          {renderOpponent(seats.top, 'top')}
+      {/* A real Okey board doesn't stretch edge to edge on a big screen or a
+          TV - it sits on a table with room around it, and that room stays
+          the same green as the felt so it still reads as "a board on a
+          table", not a stretched-out rectangle. The wood frame between the
+          green surround and the felt is a real wooden board's own edge: a
+          darker frame with a beveled highlight/shadow on opposite corners,
+          like a mitred wooden edge catching the light. */}
+      <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+        <div
+          className="w-full h-full rounded-3xl"
+          style={{
+            maxWidth: 'min(100%, 1280px)',
+            background: 'linear-gradient(160deg, #7a4e26 0%, #5c3b1a 55%, #402910 100%)',
+            boxShadow:
+              'inset 2px 2px 0 rgba(255,255,255,0.14), inset -2px -2px 0 rgba(0,0,0,0.45), 0 6px 14px rgba(0,0,0,0.35)',
+            padding: sp(9, 5),
+          }}
+        >
+          <div
+            className="grid w-full h-full rounded-2xl shadow-xl overflow-hidden"
+            style={{
+              background: 'var(--table-felt)',
+              border: '2px solid var(--table-edge)',
+              padding: sp(6, 4),
+              gap: sp(4, 3),
+              gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+              gridTemplateRows: 'auto minmax(0, 1fr) auto',
+            }}
+          >
+            <div className="col-start-2 row-start-1 flex items-start justify-center">
+              {renderOpponent(seats.top, 'top')}
+            </div>
+
+            <div className="col-start-1 row-start-2 flex items-center justify-start">
+              {renderOpponent(seats.left, 'left')}
+            </div>
+
+            <div className="col-start-2 row-start-2 flex items-center justify-center">{renderCentre()}</div>
+
+            <div className="col-start-3 row-start-2 flex items-center justify-end">
+              {renderOpponent(seats.right, 'right')}
+            </div>
+
+            <div className="col-start-1 col-span-3 row-start-3 flex items-end justify-center">{renderActions()}</div>
+          </div>
         </div>
-
-        <div className="col-start-1 row-start-2 flex items-center justify-start">
-          {renderOpponent(seats.left, 'left')}
-        </div>
-
-        <div className="col-start-2 row-start-2 flex items-center justify-center">{renderCentre()}</div>
-
-        <div className="col-start-3 row-start-2 flex items-center justify-end">
-          {renderOpponent(seats.right, 'right')}
-        </div>
-
-        <div className="col-start-1 col-span-3 row-start-3 flex items-end justify-center">{renderActions()}</div>
       </div>
 
       {/* ---------- ISTAKA (the wooden rack) ---------- */}
