@@ -9,6 +9,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Users, Play, Bot, UserPlus, Copy, Check, Tv, Trash2 } from 'lucide-react';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import BrandLogo from '../components/BrandLogo';
+import { enterPresentationMode } from '../lib/presentation';
 
 export default function Lobby() {
   const { id } = useParams();
@@ -85,6 +86,10 @@ export default function Lobby() {
   };
 
   const startGame = () => {
+    // Fired directly from a tap, so it's still a real user gesture -
+    // fullscreen/landscape need that, and by the time Game.tsx mounts
+    // (after a socket round-trip + route change) it no longer is.
+    enterPresentationMode();
     socket?.emit('start_game', { lobbyId: id });
   };
 

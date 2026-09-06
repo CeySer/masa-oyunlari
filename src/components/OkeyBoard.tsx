@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, type DragEvent } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
-import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles } from 'lucide-react';
+import { useSoundStore } from '../store/soundStore';
+import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles, Wand2 } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 
 interface Tile {
@@ -30,16 +31,28 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     declareGosterme,
   } = useGameStore();
   const showToast = useUIStore((s) => s.showToast);
+  const playSound = useSoundStore((s) => s.play);
   const [rackSlots, setRackSlots] = useState<(Tile | null)[]>(Array(TOTAL_SLOTS).fill(null));
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
 
   // Touch drag tracking
   const touchStartSlotRef = useRef<number | null>(null);
 
+  const currentPlayer = publicGameState && lobby ? lobby.players[publicGameState.turnIndex] : null;
+  const isMyTurn = Boolean(currentPlayer && socket && currentPlayer.id === socket.id);
+
+  // A little chime when it becomes your turn - only on the false -> true
+  // transition, so it doesn't replay every re-render while it's still you.
+  const wasMyTurnRef = useRef(isMyTurn);
+  useEffect(() => {
+    if (isMyTurn && !wasMyTurnRef.current) {
+      playSound('turn');
+    }
+    wasMyTurnRef.current = isMyTurn;
+  }, [isMyTurn, playSound]);
+
   if (!publicGameState || !lobby) return null;
 
-  const currentPlayer = lobby.players[publicGameState.turnIndex];
-  const isMyTurn = currentPlayer?.id === socket?.id;
   const iHaveDrawn = hand.length === 15;
 
   // Sync hand tiles with rack slots smoothly while keeping custom positions
@@ -69,11 +82,13 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
 
   const handleDrawPile = () => {
     if (!isMyTurn || iHaveDrawn) return;
+    playSound('draw');
     socket?.emit('draw_tile', { lobbyId, source: 'pile' });
   };
 
   const handleDrawDiscard = () => {
     if (!isMyTurn || iHaveDrawn) return;
+    playSound('draw');
     socket?.emit('draw_tile', { lobbyId, source: 'discard' });
   };
 
@@ -83,6 +98,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     const tile = tileToDiscard || selectedTile;
     if (!isMyTurn || !iHaveDrawn || !tile) return;
 
+    playSound('discard');
     socket?.emit('discard_tile', { lobbyId, tileId: tile.id });
     setSelectedSlotIndex(null);
   };
@@ -91,25 +107,29 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     if (hand.length === 15 && isMyTurn) {
       socket?.emit('declare_win', { lobbyId });
     } else {
+      playSound('error');
       showToast('Du benötigst 15 Steine (nach dem Ziehen), um das Spiel zu beenden!');
     }
   };
 
   useEffect(() => {
     if (winRejectedMessage) {
+      playSound('error');
       showToast(winRejectedMessage);
       clearWinRejectedMessage();
     }
-  }, [winRejectedMessage, clearWinRejectedMessage, showToast]);
+  }, [winRejectedMessage, clearWinRejectedMessage, showToast, playSound]);
 
   useEffect(() => {
     if (gostermeMessage) {
+      playSound('error');
       showToast(gostermeMessage);
       clearGostermeMessage();
     }
-  }, [gostermeMessage, clearGostermeMessage, showToast]);
+  }, [gostermeMessage, clearGostermeMessage, showToast, playSound]);
 
   const handleDeclareGosterme = () => {
+    playSound('gosterme');
     declareGosterme(lobbyId);
   };
 
@@ -205,6 +225,89 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       setSelectedSlotIndex(null);
     }
     touchStartSlotRef.current = null;
+  };
+
+  // "Logical" auto-sort: cluster tiles into their actual runs (3+ consecutive,
+  // same color) and sets (3-4, same value, different colors) with a gap
+  // between clusters, jokers up front, anything left over sorted at the end.
+  // This is a display-only heuristic (not the server's authoritative win
+  // check) - it just arranges the rack the way a player would by hand.
+  const sortByGroups = () => {
+    const tilesOnly = rackSlots.filter((t): t is Tile => t !== null);
+    const indicator = publicGameState?.indicator;
+    const isJoker = (t: Tile) =>
+      t.color === 'fake' || (indicator ? t.color === indicator.color && t.value === ((indicator.value % 13) + 1) : false);
+
+    const jokers = tilesOnly.filter(isJoker);
+    const rest = tilesOnly.filter((t) => !isJoker(t));
+    const used = new Set<number>();
+    const groups: Tile[][] = [];
+
+    // 1) Runs
+    (['red', 'black', 'blue', 'yellow'] as const).forEach((color) => {
+      const byColor = rest.filter((t) => t.color === color).sort((a, b) => a.value - b.value);
+      let run: Tile[] = [];
+      const flush = () => {
+        if (run.length >= 3) {
+          run.forEach((t) => used.add(t.id));
+          groups.push(run);
+        }
+        run = [];
+      };
+      byColor.forEach((t) => {
+        const last = run[run.length - 1];
+        if (!last || t.value === last.value + 1) {
+          run.push(t);
+        } else {
+          flush();
+          run = [t];
+        }
+      });
+      flush();
+    });
+
+    // 2) Sets, from whatever the run pass didn't use
+    const afterRuns = rest.filter((t) => !used.has(t.id));
+    const byValue = new Map<number, Tile[]>();
+    afterRuns.forEach((t) => {
+      if (!byValue.has(t.value)) byValue.set(t.value, []);
+      byValue.get(t.value)!.push(t);
+    });
+    byValue.forEach((tiles) => {
+      const seenColors = new Set<string>();
+      const setTiles: Tile[] = [];
+      tiles.forEach((t) => {
+        if (!seenColors.has(t.color)) {
+          seenColors.add(t.color);
+          setTiles.push(t);
+        }
+      });
+      if (setTiles.length >= 3) {
+        setTiles.forEach((t) => used.add(t.id));
+        groups.push(setTiles);
+      }
+    });
+
+    // 3) Leftovers - just sorted for readability
+    const leftover = rest
+      .filter((t) => !used.has(t.id))
+      .sort((a, b) => (a.color !== b.color ? a.color.localeCompare(b.color) : a.value - b.value));
+
+    const newSlots: (Tile | null)[] = Array(TOTAL_SLOTS).fill(null);
+    let idx = 0;
+    const place = (tiles: Tile[]) => {
+      tiles.forEach((t) => {
+        if (idx < TOTAL_SLOTS) newSlots[idx] = t;
+        idx++;
+      });
+      idx++; // gap between clusters
+    };
+    if (jokers.length) place(jokers);
+    groups.forEach(place);
+    if (leftover.length) place(leftover);
+
+    setRackSlots(newSlots);
+    setSelectedSlotIndex(null);
   };
 
   // Auto-sort helpers
@@ -429,6 +532,14 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
             )}
 
             {/* Auto Sort Buttons */}
+            <button
+              onClick={sortByGroups}
+              className="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold border border-emerald-500 transition flex items-center gap-1 shadow-sm"
+              title="Ordnet Reihen & Sätze automatisch zusammen"
+            >
+              <Wand2 className="w-3 h-3" />
+              <span>Auto</span>
+            </button>
             <button
               onClick={sortByColor}
               className="px-2 py-1 bg-amber-900/80 hover:bg-amber-800 text-amber-200 rounded-lg text-[11px] font-bold border border-amber-700 transition flex items-center gap-1 shadow-sm"

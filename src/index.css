@@ -51,3 +51,16 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
 }
+
+/* Slow drifting/rotating motion for the decorative Okey tiles on the login
+   screen (see Login.tsx) - just enough movement to read as "alive" without
+   distracting from the form in front of it. */
+@keyframes tile-drift {
+  0% { transform: translateY(0) rotate(var(--tile-rot, 0deg)); }
+  50% { transform: translateY(-14px) rotate(calc(var(--tile-rot, 0deg) + 4deg)); }
+  100% { transform: translateY(0) rotate(var(--tile-rot, 0deg)); }
+}
+
+.animate-tile-drift {
+  animation: tile-drift 6s ease-in-out infinite;
+}

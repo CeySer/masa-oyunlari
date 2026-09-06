@@ -4,9 +4,9 @@ import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
-import { Play, Tv, Trophy, Bot, Dices, Layers, LogOut, MailWarning, Pencil, Users } from 'lucide-react';
-import ThemeSwitcher from '../components/ThemeSwitcher';
+import { Play, Tv, Trophy, Bot, Dices, Layers, Settings as SettingsIcon, MailWarning, Pencil, Users } from 'lucide-react';
 import { isFirebaseConfigured } from '../lib/firebase';
+import { enterPresentationMode } from '../lib/presentation';
 
 const GAMES = [
   { id: 'okey' as const, name: 'Okey', subtitle: 'Klasik Taş Oyunu', players: '2–4 Spieler', icon: Layers, disabled: false },
@@ -18,7 +18,7 @@ const GAMES = [
 export default function Home() {
   const navigate = useNavigate();
   const { socket, leaderboard, accountLobbies, subscribeAccount } = useGameStore();
-  const { user, logout, getIdToken, resendVerificationEmail, authNotice } = useAuthStore();
+  const { user, getIdToken, resendVerificationEmail, authNotice } = useAuthStore();
   const { activeProfile } = useProfileStore();
   const showToast = useUIStore((s) => s.showToast);
   // Manual name field is only used as a dev/local fallback when no Firebase
@@ -138,7 +138,6 @@ export default function Home() {
             <Trophy className="w-4 h-4" />
             <span className="hidden sm:inline">Meister-Rangliste</span>
           </button>
-          <ThemeSwitcher />
           {isFirebaseConfigured && user && (
             <button
               onClick={() => navigate('/profiles', { state: { from: '/' } })}
@@ -157,15 +156,13 @@ export default function Home() {
               <Pencil className="w-3 h-3 text-[var(--color-text-muted)]" />
             </button>
           )}
-          {isFirebaseConfigured && user && (
-            <button
-              onClick={() => logout()}
-              title="Abmelden"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text)]"
-            >
-              <LogOut className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-            </button>
-          )}
+          <button
+            onClick={() => navigate('/settings')}
+            title="Einstellungen"
+            className="p-2 rounded-lg border transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text-muted)]"
+          >
+            <SettingsIcon className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
@@ -390,7 +387,10 @@ export default function Home() {
                 </button>
 
                 <button
-                  onClick={() => handleCreateLobby(true)}
+                  onClick={() => {
+                    enterPresentationMode();
+                    handleCreateLobby(true);
+                  }}
                   className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl font-bold border-2 transition active:scale-[0.98]"
                   style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-border-strong)', color: 'var(--color-accent)' }}
                 >

@@ -1,6 +1,20 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import AuthForm from '../components/AuthForm';
 import ThemeSwitcher from '../components/ThemeSwitcher';
+import { OkeyTile } from '../components/OkeyTile';
+
+// Purely decorative Okey tiles scattered behind the login card - without
+// them the login screen could be for any app at all; this makes it
+// obvious at a glance what kind of game this is. Position/rotation/timing
+// vary per tile so they don't all move in lockstep.
+const DECORATIVE_TILES = [
+  { color: 'red', value: 5, top: '8%', left: '10%', rot: -12, delay: '0s', size: 'sm' as const },
+  { color: 'blue', value: 13, top: '15%', left: '82%', rot: 10, delay: '1.2s', size: 'md' as const },
+  { color: 'black', value: 9, top: '68%', left: '6%', rot: 8, delay: '0.6s', size: 'md' as const },
+  { color: 'yellow', value: 2, top: '78%', left: '88%', rot: -6, delay: '2s', size: 'sm' as const },
+  { color: 'fake', value: 0, top: '40%', left: '4%', rot: -18, delay: '1.6s', size: 'sm' as const },
+  { color: 'red', value: 11, top: '4%', left: '48%', rot: 14, delay: '0.9s', size: 'sm' as const },
+];
 
 // Login is the mandatory front door (see App.tsx/RequireAuth) - there is no
 // valid "back" destination before signing in, since every other route just
@@ -14,8 +28,21 @@ export default function Login() {
   const from = (location.state as { from?: string } | null)?.from || '/';
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col p-4 sm:p-6 font-sans">
-      <header className="max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
+    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col p-4 sm:p-6 font-sans relative overflow-hidden">
+      {/* Decorative Okey tiles - see DECORATIVE_TILES above */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        {DECORATIVE_TILES.map((t, i) => (
+          <div
+            key={i}
+            className="absolute animate-tile-drift opacity-20 sm:opacity-30"
+            style={{ top: t.top, left: t.left, animationDelay: t.delay, ['--tile-rot' as string]: `${t.rot}deg` }}
+          >
+            <OkeyTile tile={{ color: t.color, value: t.value }} size={t.size} />
+          </div>
+        ))}
+      </div>
+
+      <header className="relative z-10 max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
         {/* Not a link: there is no valid destination before signing in (see
             note above) - a clickable logo here would just bounce back to
             this same page, which is confusing, not a shortcut. */}
@@ -31,7 +58,7 @@ export default function Login() {
         <ThemeSwitcher />
       </header>
 
-      <main className="max-w-sm w-full mx-auto my-auto py-10">
+      <main className="relative z-10 max-w-sm w-full mx-auto my-auto py-10">
         <div
           className="rounded-3xl border p-6 sm:p-7 shadow-2xl"
           style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}

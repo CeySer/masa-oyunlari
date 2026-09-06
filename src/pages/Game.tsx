@@ -5,9 +5,11 @@ import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
 import { isFirebaseConfigured } from '../lib/firebase';
+import { enterPresentationMode } from '../lib/presentation';
+import { useSoundStore } from '../store/soundStore';
 import OkeyBoard from '../components/OkeyBoard';
 import TavlaBoard from '../components/TavlaBoard';
-import { Tv, ArrowLeft, LogOut, Bot, Trophy, RefreshCw } from 'lucide-react';
+import { Tv, ArrowLeft, LogOut, Bot, Trophy, RefreshCw, Maximize } from 'lucide-react';
 
 export default function Game() {
   const { id } = useParams();
@@ -16,7 +18,14 @@ export default function Game() {
   const { authReady, getIdToken } = useAuthStore();
   const { activeProfile, profilesReady } = useProfileStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
+  const playSound = useSoundStore((s) => s.play);
   const [showTVOverlay, setShowTVOverlay] = useState(false);
+
+  // Play a little fanfare exactly once per finished hand, not on every
+  // re-render while the result screen stays up.
+  useEffect(() => {
+    if (gameResult) playSound('win');
+  }, [gameResult, playSound]);
 
   useEffect(() => {
     // Attempt auto-reconnect to game state if state is empty. Wait for auth
@@ -195,13 +204,22 @@ export default function Game() {
           )}
         </div>
 
-        <button
-          onClick={() => setShowTVOverlay(!showTVOverlay)}
-          className="flex items-center gap-1 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-xs text-[var(--color-text)] font-semibold rounded-xl border border-[var(--color-border-strong)]"
-        >
-          <Tv className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-          <span className="hidden sm:inline">{showTVOverlay ? 'Hand' : 'TV-Brett'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => enterPresentationMode()}
+            title="Vollbild & Querformat"
+            className="p-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-xl border border-[var(--color-border-strong)]"
+          >
+            <Maximize className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setShowTVOverlay(!showTVOverlay)}
+            className="flex items-center gap-1 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-xs text-[var(--color-text)] font-semibold rounded-xl border border-[var(--color-border-strong)]"
+          >
+            <Tv className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+            <span className="hidden sm:inline">{showTVOverlay ? 'Hand' : 'TV-Brett'}</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Game Area */}

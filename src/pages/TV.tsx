@@ -5,6 +5,7 @@ import { useUIStore } from '../store/uiStore';
 import { QRCodeSVG } from 'qrcode.react';
 import { Tv, Trophy, Bot, Users, Sparkles, Activity, Play, PlusCircle, Maximize } from 'lucide-react';
 import { OkeyTile } from '../components/OkeyTile';
+import { enterPresentationMode } from '../lib/presentation';
 
 export default function TV() {
   const { id } = useParams();
@@ -14,31 +15,6 @@ export default function TV() {
   const [lobbyIdInput, setLobbyIdInput] = useState(id || '');
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
   const [connected, setConnected] = useState(false);
-
-  // A TV/big-screen view reads best edge-to-edge in landscape - request both
-  // right when the user taps a button (a real gesture, which both APIs
-  // require) rather than trying it on mount. Neither is universally
-  // supported (desktop browsers ignore the orientation lock entirely, and
-  // some mobile browsers restrict fullscreen too), so every step is
-  // best-effort: the TV view still reads fine without it.
-  const enterPresentationMode = async () => {
-    try {
-      const el = document.documentElement;
-      if (!document.fullscreenElement && el.requestFullscreen) {
-        await el.requestFullscreen();
-      }
-    } catch {
-      // ignored - optional
-    }
-    try {
-      const orientation = (screen as any).orientation;
-      if (orientation?.lock) {
-        await orientation.lock('landscape');
-      }
-    } catch {
-      // ignored - not supported everywhere (usually needs fullscreen + mobile)
-    }
-  };
 
   useEffect(() => {
     if (socket && id) {
