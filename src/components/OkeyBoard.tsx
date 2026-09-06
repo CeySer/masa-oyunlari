@@ -355,14 +355,6 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     }
   };
 
-  // Double click tile to directly discard when it's your turn
-  const handleTileDoubleClick = (slotIdx: number) => {
-    const tile = rackSlots[slotIdx];
-    if (tile && isMyTurn && iHaveDrawn) {
-      handleDiscard(tile);
-    }
-  };
-
   // Drag and drop handlers
   const handleDragStart = (e: DragEvent, slotIdx: number) => {
     if (!rackSlots[slotIdx]) return;
@@ -471,7 +463,6 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         onTouchStart={() => handleTouchStart(slotIdx)}
         onTouchEnd={() => handleTouchEnd(slotIdx)}
         onClick={() => handleSlotClick(slotIdx)}
-        onDoubleClick={() => handleTileDoubleClick(slotIdx)}
         className={`cursor-pointer select-none flex-shrink-0 transition-transform ${isDealing ? 'animate-tile-deal' : ''}`}
         style={isDealing ? { animationDelay: `${(slotIdx % 15) * 25}ms` } : undefined}
       >

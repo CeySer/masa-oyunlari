@@ -35,13 +35,11 @@ const REFERENCE_TILE_W = 42;
  * off this same constant, how big those read too (they should always match
  * the rack, never look bigger or smaller than what's in hand).
  *
- * This was briefly shrunk below 1 to claim back some height for the table,
- * but that made the Istaka itself look smaller than before, which wasn't
- * the point - the table got more room instead via removing the sort
- * buttons, the "Istaka" label and the unused trailing rack slots (see
- * OkeyBoard). So this stays 1: the rack looks exactly like it always did.
+ * A modest trim, not a redesign: everything about the Istaka (all 30 slots,
+ * their numbering, the layout) stays exactly as it is - only this one
+ * number makes the tiles themselves a little smaller.
  */
-export const RACK_TILE_SCALE = 1;
+export const RACK_TILE_SCALE = 0.88;
 
 export interface BoardScale {
   tileW: number;
