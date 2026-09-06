@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { QRCodeSVG } from 'qrcode.react';
-import { Tv, Trophy, Bot, Users, Sparkles, Activity, Play, PlusCircle, Maximize, WifiOff } from 'lucide-react';
+import { Tv, Trophy, Bot, Users, Activity, Play, PlusCircle, ArrowLeft, WifiOff } from 'lucide-react';
 import { OkeyTile } from '../components/OkeyTile';
 import { enterPresentationMode } from '../lib/presentation';
 
@@ -31,6 +31,7 @@ export default function TV() {
 
   useEffect(() => {
     if (socket && id) {
+      enterPresentationMode();
       socket.emit('join_lobby', { lobbyId: id, role: 'tv' }, (res: any) => {
         if (res.success) {
           setConnected(true);
@@ -38,6 +39,10 @@ export default function TV() {
       });
     }
   }, [socket, id]);
+
+  // The only way out of TV mode - it has no player seat to leave, so this
+  // just takes you back to the main menu; the route change unmounts TV.tsx.
+  const exitTVMode = () => navigate('/');
 
   const joinAsTV = () => {
     if (!lobbyIdInput) return;
@@ -76,6 +81,13 @@ export default function TV() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] p-6 font-sans">
         <div className="max-w-md w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl shadow-2xl p-8 space-y-6">
+          <button
+            onClick={exitTVMode}
+            className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Zurück</span>
+          </button>
           <div className="text-center">
             <Tv className="w-12 h-12 text-red-500 mx-auto mb-3" />
             <h2 className="text-2xl font-bold">TV / Monitor Modus</h2>
@@ -158,14 +170,14 @@ export default function TV() {
       <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-between p-8 select-none font-sans">
 
         {/* Header */}
-        <div className="w-full flex justify-end">
+        <div className="w-full flex justify-start">
           <button
-            onClick={enterPresentationMode}
+            onClick={exitTVMode}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-xs text-[var(--color-text-muted)] font-semibold rounded-xl border border-[var(--color-border-strong)] transition"
-            title="Vollbild & Querformat"
+            title="Zurück zum Hauptmenü"
           >
-            <Maximize className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Vollbild</span>
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Zurück</span>
           </button>
         </div>
         <div className="text-center mt-4">
@@ -267,6 +279,13 @@ export default function TV() {
         {/* TV Top Bar */}
         <div className="flex items-center justify-between bg-[var(--color-surface)] border border-[var(--color-border)] px-8 py-4 rounded-2xl shadow-xl">
           <div className="flex items-center gap-3">
+            <button
+              onClick={exitTVMode}
+              className="p-2 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-xl border border-[var(--color-border-strong)] transition"
+              title="Zurück zum Hauptmenü"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
             <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
             <h1 className="text-2xl font-black tracking-tight text-[var(--color-accent)]">
               {publicGameState.gameType === 'tavla' ? 'Tavla (Backgammon)' : 'Okey Table Live'}
@@ -278,17 +297,8 @@ export default function TV() {
             <span>Am Zug: {currentPlayer?.name}</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="font-mono text-sm font-bold text-[var(--color-text-muted)]">
-              Lobby-Code: <span className="text-[var(--color-accent)] font-black">{lobby.id}</span>
-            </div>
-            <button
-              onClick={enterPresentationMode}
-              className="p-2 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-xl border border-[var(--color-border-strong)] transition"
-              title="Vollbild & Querformat"
-            >
-              <Maximize className="w-4 h-4" />
-            </button>
+          <div className="font-mono text-sm font-bold text-[var(--color-text-muted)]">
+            Lobby-Code: <span className="text-[var(--color-accent)] font-black">{lobby.id}</span>
           </div>
         </div>
 
@@ -424,7 +434,14 @@ export default function TV() {
   // Finished Game Screen on TV
   if (lobby?.status === 'finished') {
     return (
-      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-center p-8 select-none font-sans">
+      <div className="relative min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-center p-8 select-none font-sans">
+        <button
+          onClick={exitTVMode}
+          className="absolute top-6 left-6 flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-xs text-[var(--color-text-muted)] font-semibold rounded-xl border border-[var(--color-border-strong)] transition"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Zurück</span>
+        </button>
         <Trophy className="w-24 h-24 text-[var(--color-accent)] mb-4 animate-bounce" />
         <h1 className="text-6xl font-black text-[var(--color-accent)] mb-8">Spiel Beendet!</h1>
         <div className="bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] p-8 rounded-3xl shadow-2xl w-full max-w-lg">

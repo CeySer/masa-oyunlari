@@ -121,9 +121,29 @@ body {
   animation: tile-drift 6s ease-in-out infinite;
 }
 
-/* Emoji reaction popping up over a player's seat */
-@keyframes emote-pop {
-  0% { transform: translate(-50%, 6px) scale(0.4); opacity: 0; }
-  70% { transform: translate(-50%, -2px) scale(1.15); opacity: 1; }
-  100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+/* A reaction stone landing on the table in front of a player: it flies in,
+   overshoots a touch and settles with a slight tilt, like a thrown tile. */
+@keyframes reaction-throw {
+  0% { transform: translateY(26px) rotate(-18deg) scale(0.5); opacity: 0; }
+  60% { transform: translateY(-4px) rotate(6deg) scale(1.12); opacity: 1; }
+  100% { transform: translateY(0) rotate(-3deg) scale(1); opacity: 1; }
+}
+
+/* Wrapper that fades the landed stone away again after a few seconds */
+@keyframes reaction-fade {
+  0%, 78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* A tile sliding/dropping into place as a fresh hand is dealt - each tile in
+   the rack gets a small staggered animation-delay (see OkeyBoard.tsx) so
+   they appear to land one after another instead of all at once. */
+@keyframes tile-deal {
+  0% { transform: translateY(-30px) scale(0.7); opacity: 0; }
+  60% { transform: translateY(3px) scale(1.05); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.animate-tile-deal {
+  animation: tile-deal 420ms cubic-bezier(.2,1,.4,1) both;
 }

@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, type DragEvent } from 'react';
-import { useGameStore, EMOTES } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { useSoundStore } from '../store/soundStore';
-import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles, Wand2, Bot, WifiOff, Smile } from 'lucide-react';
+import { REACTIONS, findReaction } from '../lib/reactions';
+import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Sparkles, Wand2, Bot, WifiOff, MessageCircle } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
+import ReactionTile from './ReactionTile';
 
 interface Tile {
   id: number;
@@ -16,8 +18,92 @@ interface OkeyBoardProps {
 }
 
 const TOTAL_SLOTS = 30; // 2 rows of 15 slots
-// How long a sent reaction stays up over the sender's seat.
-const EMOTE_VISIBLE_MS = 4000;
+// How long a thrown reaction stone stays lying on the table.
+const REACTION_VISIBLE_MS = 4000;
+// How long the "tiles landing" deal animation plays for a fresh hand.
+const DEAL_ANIM_MS = 900;
+
+// "Logical" grouping: cluster tiles into their actual runs (3+ consecutive,
+// same color) and sets (3-4, same value, different colors) with a gap
+// between clusters, jokers up front, anything left over sorted at the end.
+// This is a display-only heuristic (not the server's authoritative win
+// check) - it just arranges the rack the way a player would by hand. Pulled
+// out as a standalone function so both the manual "Auto" button and the
+// automatic arrange-on-deal effect can share it.
+function computeGroupedSlots(tiles: Tile[], indicator: Tile | undefined | null): (Tile | null)[] {
+  const isJoker = (t: Tile) =>
+    t.color === 'fake' || (indicator ? t.color === indicator.color && t.value === ((indicator.value % 13) + 1) : false);
+
+  const jokers = tiles.filter(isJoker);
+  const rest = tiles.filter((t) => !isJoker(t));
+  const used = new Set<number>();
+  const groups: Tile[][] = [];
+
+  // 1) Runs
+  (['red', 'black', 'blue', 'yellow'] as const).forEach((color) => {
+    const byColor = rest.filter((t) => t.color === color).sort((a, b) => a.value - b.value);
+    let run: Tile[] = [];
+    const flush = () => {
+      if (run.length >= 3) {
+        run.forEach((t) => used.add(t.id));
+        groups.push(run);
+      }
+      run = [];
+    };
+    byColor.forEach((t) => {
+      const last = run[run.length - 1];
+      if (!last || t.value === last.value + 1) {
+        run.push(t);
+      } else {
+        flush();
+        run = [t];
+      }
+    });
+    flush();
+  });
+
+  // 2) Sets, from whatever the run pass didn't use
+  const afterRuns = rest.filter((t) => !used.has(t.id));
+  const byValue = new Map<number, Tile[]>();
+  afterRuns.forEach((t) => {
+    if (!byValue.has(t.value)) byValue.set(t.value, []);
+    byValue.get(t.value)!.push(t);
+  });
+  byValue.forEach((vs) => {
+    const seenColors = new Set<string>();
+    const setTiles: Tile[] = [];
+    vs.forEach((t) => {
+      if (!seenColors.has(t.color)) {
+        seenColors.add(t.color);
+        setTiles.push(t);
+      }
+    });
+    if (setTiles.length >= 3) {
+      setTiles.forEach((t) => used.add(t.id));
+      groups.push(setTiles);
+    }
+  });
+
+  // 3) Leftovers - just sorted for readability
+  const leftover = rest
+    .filter((t) => !used.has(t.id))
+    .sort((a, b) => (a.color !== b.color ? a.color.localeCompare(b.color) : a.value - b.value));
+
+  const newSlots: (Tile | null)[] = Array(TOTAL_SLOTS).fill(null);
+  let idx = 0;
+  const place = (ts: Tile[]) => {
+    ts.forEach((t) => {
+      if (idx < TOTAL_SLOTS) newSlots[idx] = t;
+      idx++;
+    });
+    idx++; // gap between clusters
+  };
+  if (jokers.length) place(jokers);
+  groups.forEach(place);
+  if (leftover.length) place(leftover);
+
+  return newSlots;
+}
 
 export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   const {
@@ -31,13 +117,16 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     gostermeMessage,
     clearGostermeMessage,
     declareGosterme,
-    emotes,
-    sendEmote,
+    reactions,
+    sendReaction,
   } = useGameStore();
   const showToast = useUIStore((s) => s.showToast);
   const playSound = useSoundStore((s) => s.play);
   const [rackSlots, setRackSlots] = useState<(Tile | null)[]>(Array(TOTAL_SLOTS).fill(null));
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+  // Tile ids currently playing the "just dealt" landing animation, so a
+  // fresh hand looks like it's being dealt out rather than just appearing.
+  const [dealingTileIds, setDealingTileIds] = useState<Set<number>>(new Set());
 
   // A phone held in landscape is only ~400-450px tall, and the rack has to
   // stay fully visible under the table - so the tiles drop a size there.
@@ -83,27 +172,27 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       </span>
     ) : null;
 
-  // Emoji reactions: a bubble pops up over whoever sent one and fades after
-  // a few seconds. The `now` clock above already ticks while a turn is
-  // running; this one keeps bubbles disappearing even between turns.
-  const [emotePickerOpen, setEmotePickerOpen] = useState(false);
-  const [, setEmoteClock] = useState(0);
-  const hasFreshEmote = Object.values(emotes).some((e) => Date.now() - e.at < EMOTE_VISIBLE_MS);
+  // Reaction stones: thrown onto the table in front of whoever sent one and
+  // cleared again a few seconds later. The turn clock above only ticks while
+  // a turn is running, so this one keeps stones disappearing in between.
+  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+  const [, setReactionClock] = useState(0);
+  const hasFreshReaction = Object.values(reactions).some((r) => Date.now() - r.at < REACTION_VISIBLE_MS);
   useEffect(() => {
-    if (!hasFreshEmote) return;
-    const id = setInterval(() => setEmoteClock((c) => c + 1), 400);
+    if (!hasFreshReaction) return;
+    const id = setInterval(() => setReactionClock((c) => c + 1), 400);
     return () => clearInterval(id);
-  }, [hasFreshEmote]);
+  }, [hasFreshReaction]);
 
-  const emoteFor = (playerId: string) => {
-    const entry = emotes[playerId];
-    if (!entry || Date.now() - entry.at > EMOTE_VISIBLE_MS) return null;
-    return entry.emote;
+  const reactionFor = (playerId: string) => {
+    const entry = reactions[playerId];
+    if (!entry || Date.now() - entry.at > REACTION_VISIBLE_MS) return null;
+    return findReaction(entry.reaction) || null;
   };
 
-  const handleSendEmote = (emote: string) => {
-    sendEmote(lobbyId, emote);
-    setEmotePickerOpen(false);
+  const handleSendReaction = (id: string) => {
+    sendReaction(lobbyId, id);
+    setReactionPickerOpen(false);
   };
 
   // Touch drag tracking
@@ -124,19 +213,32 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
 
   const iHaveDrawn = hand.length === 15;
 
-  // Sync hand tiles with rack slots smoothly while keeping custom positions
+  // Sync hand tiles with rack slots smoothly while keeping custom positions.
+  // A brand-new hand (every tile in it is unfamiliar to the rack) is arranged
+  // automatically via the same grouping logic as the "Auto" button, with a
+  // brief dealing animation - no button press needed at the start of a hand.
   useEffect(() => {
-    setRackSlots((prevSlots) => {
-      const handMap = new Map(hand.map(t => [Number(t.id), t]));
-      const nextSlots = prevSlots.map(t => (t && handMap.has(Number(t.id)) ? handMap.get(Number(t.id))! : null));
+    const handMap = new Map(hand.map((t) => [Number(t.id), t]));
+    const currentIds = new Set(rackSlots.filter((t): t is Tile => t !== null).map((t) => Number(t.id)));
+    const missingTiles = hand.filter((t) => !currentIds.has(Number(t.id)));
+    const isFreshDeal = hand.length >= 14 && missingTiles.length === hand.length;
 
+    if (isFreshDeal) {
+      setRackSlots(computeGroupedSlots(hand as Tile[], publicGameState?.indicator));
+      setDealingTileIds(new Set(hand.map((t) => Number(t.id))));
+      const timer = setTimeout(() => setDealingTileIds(new Set()), DEAL_ANIM_MS);
+      return () => clearTimeout(timer);
+    }
+
+    setRackSlots((prevSlots) => {
+      const nextSlots = prevSlots.map(t => (t && handMap.has(Number(t.id)) ? handMap.get(Number(t.id))! : null));
       const presentIds = new Set(nextSlots.filter((t): t is Tile => t !== null).map(t => Number(t.id)));
-      const missingTiles = hand.filter(t => !presentIds.has(Number(t.id)));
+      const stillMissing = hand.filter(t => !presentIds.has(Number(t.id)));
 
       let missingIdx = 0;
-      for (let i = 0; i < nextSlots.length && missingIdx < missingTiles.length; i++) {
+      for (let i = 0; i < nextSlots.length && missingIdx < stillMissing.length; i++) {
         if (nextSlots[i] === null) {
-          nextSlots[i] = missingTiles[missingIdx++];
+          nextSlots[i] = stillMissing[missingIdx++];
         }
       }
       return nextSlots;
@@ -301,86 +403,12 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     touchStartSlotRef.current = null;
   };
 
-  // "Logical" auto-sort: cluster tiles into their actual runs (3+ consecutive,
-  // same color) and sets (3-4, same value, different colors) with a gap
-  // between clusters, jokers up front, anything left over sorted at the end.
-  // This is a display-only heuristic (not the server's authoritative win
-  // check) - it just arranges the rack the way a player would by hand.
+  // "Logical" auto-sort button - same grouping logic used automatically at
+  // the start of a hand (see the [hand] effect above), callable any time the
+  // player wants to re-cluster the rack by hand.
   const sortByGroups = () => {
     const tilesOnly = rackSlots.filter((t): t is Tile => t !== null);
-    const indicator = publicGameState?.indicator;
-    const isJoker = (t: Tile) =>
-      t.color === 'fake' || (indicator ? t.color === indicator.color && t.value === ((indicator.value % 13) + 1) : false);
-
-    const jokers = tilesOnly.filter(isJoker);
-    const rest = tilesOnly.filter((t) => !isJoker(t));
-    const used = new Set<number>();
-    const groups: Tile[][] = [];
-
-    // 1) Runs
-    (['red', 'black', 'blue', 'yellow'] as const).forEach((color) => {
-      const byColor = rest.filter((t) => t.color === color).sort((a, b) => a.value - b.value);
-      let run: Tile[] = [];
-      const flush = () => {
-        if (run.length >= 3) {
-          run.forEach((t) => used.add(t.id));
-          groups.push(run);
-        }
-        run = [];
-      };
-      byColor.forEach((t) => {
-        const last = run[run.length - 1];
-        if (!last || t.value === last.value + 1) {
-          run.push(t);
-        } else {
-          flush();
-          run = [t];
-        }
-      });
-      flush();
-    });
-
-    // 2) Sets, from whatever the run pass didn't use
-    const afterRuns = rest.filter((t) => !used.has(t.id));
-    const byValue = new Map<number, Tile[]>();
-    afterRuns.forEach((t) => {
-      if (!byValue.has(t.value)) byValue.set(t.value, []);
-      byValue.get(t.value)!.push(t);
-    });
-    byValue.forEach((tiles) => {
-      const seenColors = new Set<string>();
-      const setTiles: Tile[] = [];
-      tiles.forEach((t) => {
-        if (!seenColors.has(t.color)) {
-          seenColors.add(t.color);
-          setTiles.push(t);
-        }
-      });
-      if (setTiles.length >= 3) {
-        setTiles.forEach((t) => used.add(t.id));
-        groups.push(setTiles);
-      }
-    });
-
-    // 3) Leftovers - just sorted for readability
-    const leftover = rest
-      .filter((t) => !used.has(t.id))
-      .sort((a, b) => (a.color !== b.color ? a.color.localeCompare(b.color) : a.value - b.value));
-
-    const newSlots: (Tile | null)[] = Array(TOTAL_SLOTS).fill(null);
-    let idx = 0;
-    const place = (tiles: Tile[]) => {
-      tiles.forEach((t) => {
-        if (idx < TOTAL_SLOTS) newSlots[idx] = t;
-        idx++;
-      });
-      idx++; // gap between clusters
-    };
-    if (jokers.length) place(jokers);
-    groups.forEach(place);
-    if (leftover.length) place(leftover);
-
-    setRackSlots(newSlots);
+    setRackSlots(computeGroupedSlots(tilesOnly, publicGameState?.indicator));
     setSelectedSlotIndex(null);
   };
 
@@ -446,6 +474,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
 
   const renderSlotTile = (tile: Tile | null, slotIdx: number) => {
     const isSelected = selectedSlotIndex === slotIdx;
+    const isDealing = Boolean(tile) && dealingTileIds.has(Number(tile!.id));
 
     return (
       <div
@@ -458,7 +487,8 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         onTouchEnd={() => handleTouchEnd(slotIdx)}
         onClick={() => handleSlotClick(slotIdx)}
         onDoubleClick={() => handleTileDoubleClick(slotIdx)}
-        className="cursor-pointer select-none flex-shrink-0 transition-transform"
+        className={`cursor-pointer select-none flex-shrink-0 transition-transform ${isDealing ? 'animate-tile-deal' : ''}`}
+        style={isDealing ? { animationDelay: `${(slotIdx % 15) * 25}ms` } : undefined}
       >
         {tile ? (
           <OkeyTile tile={tile} selected={isSelected} size={compact ? 'sm' : 'md'} />
@@ -468,10 +498,27 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       </div>
     );
   };
-  // One opponent: name, the tile they discarded last (tappable when it's
-  // your turn and they're the player before you), and their tile count.
-  // Laid out flat in landscape, stacked in portrait.
-  const renderOpponent = (p: any) => {
+  // Where each opponent's plaque sits around a rectangular table, in turn
+  // order starting from whoever plays right after me - one seat opposite,
+  // the rest split left/right, same as sitting at a real four-sided table.
+  const seatClassFor = (idx: number, count: number): string => {
+    if (count <= 1) return 'top-1 sm:top-2 left-1/2 -translate-x-1/2 flex-col';
+    if (count === 2) {
+      return idx === 0
+        ? 'top-1/2 right-1 sm:right-2 -translate-y-1/2 flex-row-reverse'
+        : 'top-1/2 left-1 sm:left-2 -translate-y-1/2 flex-row';
+    }
+    // 3 opponents (4-player game)
+    if (idx === 0) return 'top-1/2 right-1 sm:right-2 -translate-y-1/2 flex-row-reverse';
+    if (idx === 1) return 'top-1 sm:top-2 left-1/2 -translate-x-1/2 flex-col';
+    return 'top-1/2 left-1 sm:left-2 -translate-y-1/2 flex-row';
+  };
+
+  // One opponent's plaque: name, the tile they discarded last (tappable when
+  // it's your turn and they're the player before you, with a checkmark
+  // showing it can be taken), and their tile count - positioned at their
+  // seat around the table via seatClassFor.
+  const renderOpponent = (p: any, seatClass: string) => {
     const isTheirTurn = lobby.players[publicGameState.turnIndex]?.id === p.id;
     const discard = lastDiscardOf(p.id);
     const takeable = canTakeDiscard && p.id === prevPlayer?.id;
@@ -483,9 +530,9 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         onClick={takeable ? handleDrawDiscard : undefined}
         disabled={!takeable}
         title={takeable ? `Stein von ${p.name} aufnehmen` : p.name}
-        className={`relative min-w-0 flex ${
-          compact ? 'flex-row items-center gap-2 px-2 py-1' : 'flex-1 flex-col items-center gap-0.5 px-1.5 py-1'
-        } rounded-xl transition disabled:cursor-default ${takeable ? 'cursor-pointer active:scale-[0.97]' : ''}`}
+        className={`absolute z-10 flex items-center gap-1.5 px-2 py-1.5 rounded-xl transition disabled:cursor-default max-w-[9rem] sm:max-w-[11rem] ${seatClass} ${
+          takeable ? 'cursor-pointer active:scale-[0.97]' : ''
+        }`}
         style={{
           background: isTheirTurn
             ? 'color-mix(in srgb, var(--color-accent) 22%, transparent)'
@@ -500,28 +547,35 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           boxShadow: takeable ? '0 0 0 2px color-mix(in srgb, var(--color-accent) 40%, transparent)' : undefined,
         }}
       >
-        {/* Reaction this player just sent */}
-        {emoteFor(p.id) && (
+        {/* The stone this player just threw onto the table */}
+        {reactionFor(p.id) && (
           <span
-            className="absolute -top-3 left-1/2 -translate-x-1/2 text-xl drop-shadow-lg pointer-events-none"
-            style={{ animation: 'emote-pop 260ms ease-out' }}
+            className="absolute -top-8 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
+            style={{ animation: `reaction-fade ${REACTION_VISIBLE_MS}ms ease-out forwards` }}
           >
-            {emoteFor(p.id)}
+            <ReactionTile reaction={reactionFor(p.id)!} size="sm" thrown />
           </span>
         )}
 
-        {discard ? (
-          <OkeyTile tile={discard} size="xs" />
-        ) : (
-          <span
-            className="flex-shrink-0 flex items-center justify-center w-6 h-9 rounded-md border border-dashed text-[8px]"
-            style={{ borderColor: 'var(--slot-empty-border)', color: 'var(--color-text-muted)' }}
-          >
-            –
-          </span>
-        )}
+        <span className="relative flex-shrink-0">
+          {discard ? (
+            <OkeyTile tile={discard} size="xs" />
+          ) : (
+            <span
+              className="flex items-center justify-center w-6 h-9 rounded-md border border-dashed text-[8px]"
+              style={{ borderColor: 'var(--slot-empty-border)', color: 'var(--color-text-muted)' }}
+            >
+              –
+            </span>
+          )}
+          {takeable && (
+            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shadow">
+              ✓
+            </span>
+          )}
+        </span>
 
-        <span className={`min-w-0 flex-1 flex flex-col ${compact ? 'items-start' : 'items-center'}`}>
+        <span className="min-w-0 flex-1 flex flex-col items-start">
           <span className="flex items-center gap-1 max-w-full">
             {p.isBot && <Bot className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />}
             {p.away && <WifiOff className="w-3 h-3 flex-shrink-0 text-red-400" />}
@@ -541,13 +595,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
               color: takeable ? 'var(--color-accent)' : p.away ? '#f87171' : 'var(--color-text-muted)',
             }}
           >
-            {p.away
-              ? 'offline - Computer übernimmt'
-              : takeable
-              ? 'aufnehmen'
-              : typeof count === 'number'
-              ? `${count} Steine`
-              : ''}
+            {p.away ? 'offline' : typeof count === 'number' ? `${count} Steine` : ''}
           </span>
           {/* Countdown while it's this player's turn - everyone sees it */}
           {isTheirTurn && renderTurnBar()}
@@ -556,40 +604,30 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     );
   };
 
-  // Middle of the table: draw pile, the indicator, and my own discard slot.
+  // Middle of the table: face-down draw pile, the indicator tile centered
+  // plainly, and my own discard slot right next to it - like a real table,
+  // no explanatory captions needed.
   const renderCentre = () => (
-    <div className="flex items-center justify-center gap-2 sm:gap-4">
+    <div className="flex items-center justify-center gap-2.5 sm:gap-4">
       <button
         onClick={handleDrawPile}
         disabled={!isMyTurn || iHaveDrawn}
-        className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition disabled:opacity-45 active:scale-[0.97]"
+        title="Vom Stapel ziehen"
+        className="relative flex items-center justify-center w-8 h-12 sm:w-10 sm:h-14 rounded-md transition disabled:opacity-50 active:scale-[0.97]"
         style={{
-          background: 'var(--table-inset)',
-          border: `1px solid ${isMyTurn && !iHaveDrawn ? 'var(--color-accent)' : 'var(--table-edge)'}`,
+          background: 'linear-gradient(160deg, #b45309 0%, #92400e 60%, #78350f 100%)',
+          border: `2px solid ${isMyTurn && !iHaveDrawn ? 'var(--color-accent)' : 'var(--table-edge)'}`,
+          boxShadow: '0 3px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15)',
         }}
       >
-        <Layers className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
-        <span className="text-base sm:text-xl font-black leading-none" style={{ color: 'var(--color-text)' }}>
-          {publicGameState.pileCount}
-        </span>
-        <span className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
-          Stapel
-        </span>
+        <span className="text-[11px] sm:text-sm font-black text-amber-100">{publicGameState.pileCount}</span>
       </button>
 
-      <div
-        className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl"
-        style={{ background: 'var(--table-inset)', border: '1px solid var(--table-edge)' }}
-      >
-        {publicGameState.indicator ? (
-          <OkeyTile tile={publicGameState.indicator} size="xs" className="ring-2 ring-[var(--color-accent)]/60" />
-        ) : (
-          <span style={{ color: 'var(--color-text-muted)' }}>–</span>
-        )}
-        <span className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--color-accent)' }}>
-          Gösterge
-        </span>
-      </div>
+      {publicGameState.indicator ? (
+        <OkeyTile tile={publicGameState.indicator} size="sm" className="ring-2 ring-[var(--color-accent)]/70" />
+      ) : (
+        <span className="w-8 h-12 sm:w-10 sm:h-14" />
+      )}
 
       <div
         onDragOver={handleDragOver}
@@ -597,27 +635,16 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         onClick={() => {
           if (selectedTile && isMyTurn && iHaveDrawn) handleDiscard();
         }}
-        className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition ${
+        title="Ablegen"
+        className={`flex items-center justify-center w-8 h-12 sm:w-10 sm:h-14 rounded-md transition ${
           isMyTurn && iHaveDrawn ? 'cursor-pointer animate-pulse' : ''
         }`}
         style={{
           background: 'var(--table-inset)',
-          border: `1px solid ${isMyTurn && iHaveDrawn ? '#ef4444' : 'var(--table-edge)'}`,
+          border: `2px dashed ${isMyTurn && iHaveDrawn ? '#ef4444' : 'var(--table-edge)'}`,
         }}
       >
-        {myTopDiscard ? (
-          <OkeyTile tile={myTopDiscard} size="xs" />
-        ) : (
-          <span
-            className="flex items-center justify-center w-6 h-9 rounded-md border border-dashed text-[8px]"
-            style={{ borderColor: 'var(--slot-empty-border)', color: 'var(--color-text-muted)' }}
-          >
-            –
-          </span>
-        )}
-        <span className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
-          Ablage
-        </span>
+        {myTopDiscard && <OkeyTile tile={myTopDiscard} size="xs" />}
       </div>
     </div>
   );
@@ -653,31 +680,32 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           <span className="truncate">Okey Gewinnen</span>
         </button>
 
-        {/* Quick reactions - a fixed set, no free text */}
+        {/* Throw a reaction stone - a fixed set of calls, never free text */}
         <div className="relative">
           <button
-            onClick={() => setEmotePickerOpen((o) => !o)}
-            title="Reaktion senden"
+            onClick={() => setReactionPickerOpen((o) => !o)}
+            title="Stein werfen"
             className="h-full px-2.5 rounded-xl transition active:scale-95"
             style={{ background: 'var(--table-inset)', border: '1px solid var(--table-edge)' }}
           >
-            <Smile className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+            <MessageCircle className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
           </button>
 
-          {emotePickerOpen && (
+          {reactionPickerOpen && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setEmotePickerOpen(false)} />
+              <div className="fixed inset-0 z-40" onClick={() => setReactionPickerOpen(false)} />
               <div
-                className="absolute bottom-full right-0 mb-2 z-50 flex gap-1 p-1.5 rounded-2xl shadow-2xl"
+                className="absolute bottom-full right-0 mb-2 z-50 flex gap-1.5 p-2 rounded-2xl shadow-2xl"
                 style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border-strong)' }}
               >
-                {EMOTES.map((e) => (
+                {REACTIONS.map((r) => (
                   <button
-                    key={e}
-                    onClick={() => handleSendEmote(e)}
-                    className="text-2xl leading-none px-2 py-1 rounded-xl transition active:scale-90 hover:scale-110"
+                    key={r.id}
+                    onClick={() => handleSendReaction(r.id)}
+                    title={r.title}
+                    className="transition active:scale-90 hover:-translate-y-0.5"
                   >
-                    {e}
+                    <ReactionTile reaction={r} size="sm" />
                   </button>
                 ))}
               </div>
@@ -691,30 +719,19 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   return (
     <div className="flex flex-col flex-1 min-h-0 justify-between gap-2 sm:gap-3">
       {/* ---------- THE TABLE ---------- */}
-      {/* Portrait: opponents on top, table centre below. Landscape (short
-          and wide): opponents down the left, centre and actions on the
-          right - otherwise the rack gets pushed off the bottom edge. */}
+      {/* A rectangular table like a real one: opponents sit around the
+          edges at their actual seats (seatClassFor), the indicator and draw
+          pile lie in the middle. */}
       <div
-        className={`relative flex flex-1 min-h-0 p-2 sm:p-3 rounded-2xl sm:rounded-3xl shadow-xl ${
-          compact ? 'flex-row items-stretch gap-3' : 'flex-col justify-between gap-1.5 sm:gap-2'
-        }`}
+        className="relative flex-1 min-h-[210px] sm:min-h-[300px] rounded-2xl sm:rounded-3xl shadow-xl"
         style={{ background: 'var(--table-felt)', border: '2px solid var(--table-edge)' }}
       >
-        <div
-          className={
-            compact
-              ? 'flex flex-col justify-center gap-1.5 w-[38%] max-w-[15rem]'
-              : 'flex items-stretch justify-center gap-1.5 sm:gap-3'
-          }
-        >
-          {opponents.map(renderOpponent)}
-        </div>
+        {opponents.map((p: any, i: number) => renderOpponent(p, seatClassFor(i, opponents.length)))}
 
-        <div className={compact ? 'flex-1 min-w-0 flex flex-col justify-center gap-2' : 'contents'}>
-          {renderCentre()}
-          {renderActions()}
-        </div>
+        <div className="absolute inset-0 flex items-center justify-center">{renderCentre()}</div>
       </div>
+
+      {renderActions()}
 
       {/* ---------- ISTAKA (the wooden rack) ---------- */}
       <div
@@ -722,12 +739,12 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         style={{ background: 'var(--rack-wood)', border: '2px solid var(--rack-wood-edge)' }}
       >
         <div className="relative flex items-center justify-between mb-1.5 px-1">
-          {emoteFor(socket?.id || '') && (
+          {reactionFor(socket?.id || '') && (
             <span
-              className="absolute -top-6 left-1/2 -translate-x-1/2 text-2xl drop-shadow-lg pointer-events-none"
-              style={{ animation: 'emote-pop 260ms ease-out' }}
+              className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
+              style={{ animation: `reaction-fade ${REACTION_VISIBLE_MS}ms ease-out forwards` }}
             >
-              {emoteFor(socket?.id || '')}
+              <ReactionTile reaction={reactionFor(socket?.id || '')!} size="sm" thrown />
             </span>
           )}
           <div className="flex items-center gap-1.5 sm:gap-2">

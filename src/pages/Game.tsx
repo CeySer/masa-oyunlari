@@ -10,7 +10,7 @@ import { useSoundStore } from '../store/soundStore';
 import MainMenu from '../components/MainMenu';
 import OkeyBoard from '../components/OkeyBoard';
 import TavlaBoard from '../components/TavlaBoard';
-import { Tv, ArrowLeft, LogOut, Bot, Trophy, RefreshCw, Maximize, Menu } from 'lucide-react';
+import { Bot, Trophy, RefreshCw, Menu } from 'lucide-react';
 
 export default function Game() {
   const { id } = useParams();
@@ -28,6 +28,14 @@ export default function Game() {
   useEffect(() => {
     if (gameResult) playSound('win');
   }, [gameResult, playSound]);
+
+  // Games always run fullscreen/landscape - no manual button for it anymore.
+  // This can't rely on a click gesture (there isn't always one right before
+  // Game.tsx mounts, e.g. after a reconnect), so it's a best-effort, silently
+  // ignored attempt rather than a guarantee.
+  useEffect(() => {
+    enterPresentationMode();
+  }, []);
 
   useEffect(() => {
     // Attempt auto-reconnect to game state if state is empty. Wait for auth
@@ -168,67 +176,28 @@ export default function Game() {
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col justify-between p-2 sm:p-4 select-none">
       
-      {/* Top Header */}
+      {/* Top Header - kept deliberately minimal so the table has the room;
+          everything else (leaving the game, the public board view, sound,
+          rules, ...) lives behind the burger menu. */}
       <header className="flex items-center justify-between pb-2 border-b border-[var(--color-border)] mb-2">
-        <div className="flex items-center gap-2">
-          {/* Back to Lobby Button */}
-          <button
-            onClick={handleBackToLobby}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] text-xs font-bold rounded-xl transition"
-            title="Zurück zur Lobby"
-          >
-            <ArrowLeft className="w-4 h-4 text-[var(--color-text-muted)]" />
-            <span className="hidden sm:inline">Lobby</span>
-          </button>
+        {isMyTurn ? (
+          <div className="px-3.5 py-1 bg-[var(--color-accent)] text-[var(--color-accent-contrast)] font-black rounded-full text-xs shadow-lg animate-pulse">
+            ★ DU BIST AM ZUG ★
+          </div>
+        ) : (
+          <div className="px-3 py-1 bg-[var(--color-surface-2)] text-[var(--color-text)] font-semibold rounded-full text-xs flex items-center gap-1.5 border border-[var(--color-border-strong)]">
+            {currentPlayer?.isBot && <Bot className="w-3.5 h-3.5 text-[var(--color-accent)]" />}
+            <span>Am Zug: {currentPlayer?.name}</span>
+          </div>
+        )}
 
-          {/* Leave Game Button (Bot takes over) */}
-          <button
-            onClick={handleLeaveGame}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-950/80 hover:bg-red-900/90 border border-red-800/80 text-red-300 text-xs font-bold rounded-xl transition shadow"
-            title="Spiel beenden / Bot übernimmt"
-          >
-            <LogOut className="w-3.5 h-3.5 text-red-400" />
-            <span>Spiel Beenden</span>
-          </button>
-        </div>
-
-        {/* Turn Status Banner */}
-        <div className="flex items-center gap-2">
-          {isMyTurn ? (
-            <div className="px-3.5 py-1 bg-[var(--color-accent)] text-[var(--color-accent-contrast)] font-black rounded-full text-xs shadow-lg animate-pulse">
-              ★ DU BIST AM ZUG ★
-            </div>
-          ) : (
-            <div className="px-3 py-1 bg-[var(--color-surface-2)] text-[var(--color-text)] font-semibold rounded-full text-xs flex items-center gap-1.5 border border-[var(--color-border-strong)]">
-              {currentPlayer?.isBot && <Bot className="w-3.5 h-3.5 text-[var(--color-accent)]" />}
-              <span>Am Zug: {currentPlayer?.name}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => enterPresentationMode()}
-            title="Vollbild & Querformat"
-            className="p-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-xl border border-[var(--color-border-strong)]"
-          >
-            <Maximize className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setShowTVOverlay(!showTVOverlay)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-xs text-[var(--color-text)] font-semibold rounded-xl border border-[var(--color-border-strong)]"
-          >
-            <Tv className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-            <span className="hidden sm:inline">{showTVOverlay ? 'Hand' : 'TV-Brett'}</span>
-          </button>
-          <button
-            onClick={() => setMenuOpen(true)}
-            title="Menü"
-            className="p-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-xl border border-[var(--color-border-strong)]"
-          >
-            <Menu className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <button
+          onClick={() => setMenuOpen(true)}
+          title="Menü"
+          className="p-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-xl border border-[var(--color-border-strong)]"
+        >
+          <Menu className="w-3.5 h-3.5" />
+        </button>
       </header>
 
       {/* Main Game Area */}
@@ -282,7 +251,19 @@ export default function Game() {
 
       </main>
 
-      <MainMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <MainMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onLeaveGame={() => {
+          setMenuOpen(false);
+          handleLeaveGame();
+        }}
+        tvBoardOpen={showTVOverlay}
+        onToggleTvBoard={() => {
+          setMenuOpen(false);
+          setShowTVOverlay((v) => !v);
+        }}
+      />
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useProfileStore } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { QRCodeSVG } from 'qrcode.react';
-import { Users, Play, Bot, UserPlus, Copy, Check, Tv, Trash2, Menu } from 'lucide-react';
+import { Users, Play, Bot, UserPlus, Copy, Check, Trash2, Menu } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 import MainMenu from '../components/MainMenu';
 import { enterPresentationMode } from '../lib/presentation';
@@ -118,13 +118,6 @@ export default function Lobby() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate(`/tv/${id}`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-xs text-[var(--color-text)] font-semibold rounded-lg border border-[var(--color-border-strong)]"
-          >
-            <Tv className="w-4 h-4 text-[var(--color-text-muted)]" />
-            <span>TV-Modus</span>
-          </button>
           <button
             onClick={() => setMenuOpen(true)}
             title="Menü"

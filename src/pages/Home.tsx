@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
-import { Play, Tv, Trophy, Bot, Dices, Layers, Menu, MailWarning, Pencil, Users } from 'lucide-react';
+import { Play, Trophy, Bot, Dices, Layers, Menu, MailWarning, Pencil, Users } from 'lucide-react';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { enterPresentationMode } from '../lib/presentation';
 import MainMenu from '../components/MainMenu';
@@ -378,7 +378,7 @@ export default function Home() {
               )}
 
               {/* Actions - big icon-first tiles, minimal text */}
-              <div className="grid grid-cols-3 gap-3 pt-1">
+              <div className="grid grid-cols-2 gap-3 pt-1">
                 <button
                   onClick={() => handleCreateLobby(false)}
                   disabled={isFirebaseConfigured && !activeProfile}
@@ -398,15 +398,6 @@ export default function Home() {
                 >
                   <Bot className="w-7 h-7" />
                   <span className="text-xs leading-tight text-center">Gegen Computer</span>
-                </button>
-
-                <button
-                  onClick={() => navigate('/tv')}
-                  className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl font-bold border-2 transition active:scale-[0.98]"
-                  style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-border-strong)', color: 'var(--color-text)' }}
-                >
-                  <Tv className="w-7 h-7" style={{ color: 'var(--color-text-muted)' }} />
-                  <span className="text-xs leading-tight text-center">TV-Modus</span>
                 </button>
               </div>
 

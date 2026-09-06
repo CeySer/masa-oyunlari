@@ -20,6 +20,8 @@ import {
   Copy,
   Check,
   Palette,
+  DoorOpen,
+  Tv,
 } from 'lucide-react';
 
 const SUPPORT_EMAIL = 'cu.oezdemir@gmail.com';
@@ -62,6 +64,12 @@ const OKEY_RULES = [
 interface MainMenuProps {
   open: boolean;
   onClose: () => void;
+  // Extra rows shown only while a game is in progress (Game.tsx passes
+  // these) - kept optional so every other page can use the same menu
+  // without knowing about them.
+  onLeaveGame?: () => void;
+  tvBoardOpen?: boolean;
+  onToggleTvBoard?: () => void;
 }
 
 /**
@@ -70,7 +78,7 @@ interface MainMenuProps {
  * navigates anywhere, so it can't drop you somewhere unexpected (like the
  * login screen) just for opening it.
  */
-export default function MainMenu({ open, onClose }: MainMenuProps) {
+export default function MainMenu({ open, onClose, onLeaveGame, tvBoardOpen, onToggleTvBoard }: MainMenuProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { activeProfile } = useProfileStore();
@@ -158,6 +166,24 @@ export default function MainMenu({ open, onClose }: MainMenuProps) {
             <X className="w-4 h-4 text-[var(--color-text-muted)]" />
           </button>
         </div>
+
+        {onLeaveGame && (
+          <Row
+            icon={<DoorOpen className="w-5 h-5" />}
+            label="Spiel Beenden"
+            sublabel="Ein Bot übernimmt deinen Platz"
+            onClick={onLeaveGame}
+          />
+        )}
+
+        {onToggleTvBoard && (
+          <Row
+            icon={<Tv className="w-5 h-5" />}
+            label="Öffentliches Spielfeld"
+            sublabel={tvBoardOpen ? 'Wird angezeigt' : 'Wie auf dem TV-Bildschirm'}
+            onClick={onToggleTvBoard}
+          />
+        )}
 
         {isFirebaseConfigured && activeProfile && (
           <Row
