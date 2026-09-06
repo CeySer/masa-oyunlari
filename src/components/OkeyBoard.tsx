@@ -3,7 +3,7 @@ import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { useSoundStore } from '../store/soundStore';
 import { REACTIONS, findReaction } from '../lib/reactions';
-import { ChevronLeft, ChevronRight, Sparkles, Bot, WifiOff, MessageCircle } from 'lucide-react';
+import { Sparkles, Bot, WifiOff, MessageCircle } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 import ReactionTile from './ReactionTile';
 import { useBoardScale, RACK_TILE_SCALE } from '../lib/useBoardScale';
@@ -344,19 +344,6 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       next[toIdx] = temp;
       return next;
     });
-  };
-
-  // Move selected tile left or right
-  const moveSelectedLeft = () => {
-    if (selectedSlotIndex === null || selectedSlotIndex <= 0) return;
-    swapSlots(selectedSlotIndex, selectedSlotIndex - 1);
-    setSelectedSlotIndex(selectedSlotIndex - 1);
-  };
-
-  const moveSelectedRight = () => {
-    if (selectedSlotIndex === null || selectedSlotIndex >= TOTAL_SLOTS - 1) return;
-    swapSlots(selectedSlotIndex, selectedSlotIndex + 1);
-    setSelectedSlotIndex(selectedSlotIndex + 1);
   };
 
   // Handle slot tap/click
@@ -863,41 +850,6 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
             )}
           </div>
 
-          <div className="flex items-center flex-shrink-0" style={{ gap: sp(5, 3) }}>
-            {selectedSlotIndex !== null && (
-              <div
-                className="flex items-center rounded-lg"
-                style={{ gap: sp(3, 2), padding: sp(2, 1), background: 'var(--table-inset)', border: '1px solid var(--rack-wood-edge)' }}
-              >
-                <button
-                  onClick={moveSelectedLeft}
-                  disabled={selectedSlotIndex === 0}
-                  className="rounded font-bold transition flex items-center disabled:opacity-30"
-                  style={{
-                    padding: `${sp(3, 2)} ${sp(5, 3)}`,
-                    background: 'var(--color-accent)',
-                    color: 'var(--color-accent-contrast)',
-                  }}
-                  title="Nach links verschieben"
-                >
-                  <ChevronLeft style={iconSize} />
-                </button>
-                <button
-                  onClick={moveSelectedRight}
-                  disabled={selectedSlotIndex === TOTAL_SLOTS - 1}
-                  className="rounded font-bold transition flex items-center disabled:opacity-30"
-                  style={{
-                    padding: `${sp(3, 2)} ${sp(5, 3)}`,
-                    background: 'var(--color-accent)',
-                    color: 'var(--color-accent-contrast)',
-                  }}
-                  title="Nach rechts verschieben"
-                >
-                  <ChevronRight style={iconSize} />
-                </button>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Two full rows of 15, numbered even when empty - the tile unit is

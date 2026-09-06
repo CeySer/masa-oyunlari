@@ -38,8 +38,12 @@ const REFERENCE_TILE_W = 42;
  * A modest trim, not a redesign: everything about the Istaka (all 30 slots,
  * their numbering, the layout) stays exactly as it is - only this one
  * number makes the tiles themselves a little smaller.
+ *
+ * Matches the size of the small discard-preview tile shown in each
+ * opponent's name plaque (scale 0.62 in renderOpponent()) - the size the
+ * user singled out as the one to use everywhere.
  */
-export const RACK_TILE_SCALE = 0.88;
+export const RACK_TILE_SCALE = 0.62;
 
 export interface BoardScale {
   tileW: number;
