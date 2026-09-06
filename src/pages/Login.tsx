@@ -1,6 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import AuthForm from '../components/AuthForm';
-import ThemeSwitcher from '../components/ThemeSwitcher';
 import { OkeyTile } from '../components/OkeyTile';
 
 // Purely decorative Okey tiles scattered behind the login card - without
@@ -55,7 +54,6 @@ export default function Login() {
           </div>
           <span className="font-black text-sm">Masa Oyunları</span>
         </div>
-        <ThemeSwitcher />
       </header>
 
       <main className="relative z-10 max-w-sm w-full mx-auto my-auto py-10">

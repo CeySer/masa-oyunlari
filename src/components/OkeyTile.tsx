@@ -90,9 +90,15 @@ interface EmptyTileSlotProps {
 export function EmptyOkeyTileSlot({ index, size = 'md', className = '' }: EmptyTileSlotProps) {
   return (
     <div
-      className={`flex items-center justify-center border border-dashed border-amber-900/40 bg-amber-950/30 hover:border-amber-700/60 ${SIZE_CLASSES[size]} ${className}`}
+      className={`flex items-center justify-center border border-dashed ${SIZE_CLASSES[size]} ${className}`}
+      style={{
+        background: 'var(--slot-empty)',
+        borderColor: 'var(--slot-empty-border)',
+      }}
     >
-      <span className="text-[8px] text-amber-900/50 font-mono">{index + 1}</span>
+      <span className="text-[8px] font-mono opacity-40" style={{ color: 'var(--color-text)' }}>
+        {index + 1}
+      </span>
     </div>
   );
 }

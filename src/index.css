@@ -2,15 +2,47 @@
 
 /* ============================================================
    THEME SYSTEM
-   Two switchable palettes, selected via [data-theme] on <html> - a dark
-   and a light variant of the SAME modern design (identical accent/CTA
-   teal, only the background/surface/text swap). Components consume these
-   through bg-[var(--...)] / text-[var(--...)] utility classes rather than
-   hardcoded Tailwind colors, so the whole site (not just the game board)
-   follows the chosen theme.
+   Three switchable palettes, selected via [data-theme] on <html>:
+   "klassik" (green felt + wood, the real card-table look, and the
+   default), plus a dark and a light variant of the flat modern design
+   which share the same teal accent and only swap surfaces.
+   Components consume these through bg-[var(--...)] / text-[var(--...)]
+   utility classes rather than hardcoded Tailwind colors, so the whole
+   site - board included - follows the chosen theme.
+
+   Beyond the shared tokens, the board also uses a few table-specific
+   ones (--table-felt, --rack-wood, ...) so the playing surface can look
+   like real felt and wood in Klassik and stay flat in the modern themes.
    ============================================================ */
 
 :root,
+[data-theme='klassik'] {
+  --color-bg: #0c4c2e;
+  --color-surface: #0a4228;
+  --color-surface-2: #0f5735;
+  --color-surface-3: #156b43;
+  --color-border: #06381f;
+  --color-border-strong: #8a5a2b;
+  --color-text: #f8efda;
+  --color-text-muted: #b3cfbe;
+  --color-accent: #e8c56a;
+  --color-accent-strong: #f5d888;
+  --color-accent-contrast: #0a4228;
+  --color-cta-from: #a9762f;
+  --color-cta-to: #7d5320;
+  --color-cta-hover-from: #c08a3c;
+  --color-cta-hover-to: #93632a;
+
+  /* Playing surface */
+  --table-felt: radial-gradient(circle at 50% 38%, #16724a 0%, #0c4c2e 62%, #073a22 100%);
+  --table-edge: #06381f;
+  --rack-wood: linear-gradient(180deg, #8b5a2b 0%, #6d4520 55%, #543616 100%);
+  --rack-wood-edge: #422a11;
+  --slot-empty: rgba(0, 0, 0, 0.22);
+  --slot-empty-border: rgba(255, 236, 200, 0.18);
+  --table-inset: rgba(0, 0, 0, 0.22);
+}
+
 [data-theme='modern-dark'] {
   --color-bg: #0b1220;
   --color-surface: #151f30;
@@ -27,6 +59,15 @@
   --color-cta-to: #0f766e;
   --color-cta-hover-from: #14b8a6;
   --color-cta-hover-to: #0d9488;
+
+  /* Same board layout as Klassik, but flat and cool instead of felt/wood */
+  --table-felt: radial-gradient(circle at 50% 38%, #1b2942 0%, #101a2b 65%, #0b1220 100%);
+  --table-edge: #263449;
+  --rack-wood: linear-gradient(180deg, #24334c 0%, #1b273b 55%, #141d2c 100%);
+  --rack-wood-edge: #35455e;
+  --slot-empty: rgba(255, 255, 255, 0.04);
+  --slot-empty-border: rgba(143, 160, 184, 0.28);
+  --table-inset: rgba(0, 0, 0, 0.25);
 }
 
 [data-theme='light'] {
@@ -45,11 +86,26 @@
   --color-cta-to: #0f766e;
   --color-cta-hover-from: #14b8a6;
   --color-cta-hover-to: #0d9488;
+
+  --table-felt: radial-gradient(circle at 50% 38%, #ffffff 0%, #eef2f6 65%, #e2e8f0 100%);
+  --table-edge: #c7d0da;
+  --rack-wood: linear-gradient(180deg, #ffffff 0%, #eef2f6 55%, #e2e8f0 100%);
+  --rack-wood-edge: #c7d0da;
+  --slot-empty: rgba(16, 24, 40, 0.04);
+  --slot-empty-border: rgba(91, 107, 127, 0.3);
+  --table-inset: rgba(16, 24, 40, 0.05);
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-text);
+}
+
+/* Klassik only: a faint woven texture over the felt, like a real card table */
+[data-theme='klassik'] body {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 4px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.025) 0 2px, transparent 2px 4px);
 }
 
 /* Slow drifting/rotating motion for the decorative Okey tiles on the login

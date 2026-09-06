@@ -227,23 +227,34 @@ export default function Game() {
         
         {showTVOverlay ? (
           /* Mini TV Board View inside Mobile Screen */
-          <div className="bg-emerald-950 border border-emerald-900 rounded-3xl p-6 text-center space-y-6 flex-1 flex flex-col justify-center shadow-2xl">
-            <h2 className="text-xl font-bold text-emerald-200">Öffentliches Spielfeld (TV View)</h2>
+          <div
+            className="rounded-3xl p-6 text-center space-y-6 flex-1 flex flex-col justify-center shadow-2xl"
+            style={{ background: 'var(--table-felt)', border: '2px solid var(--table-edge)' }}
+          >
+            <h2 className="text-xl font-bold" style={{ color: 'var(--color-text)' }}>
+              Öffentliches Spielfeld (TV View)
+            </h2>
             <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
               {lobby.players.map((p: any, idx: number) => (
                 <div
                   key={p.id}
-                  className={`p-4 rounded-2xl border text-left ${
+                  className="p-4 rounded-2xl border text-left"
+                  style={
                     idx === publicGameState.turnIndex
-                      ? 'bg-amber-950/80 border-amber-500 ring-2 ring-amber-500'
-                      : 'bg-emerald-900/60 border-emerald-800'
-                  }`}
+                      ? {
+                          background: 'color-mix(in srgb, var(--color-accent) 22%, transparent)',
+                          borderColor: 'var(--color-accent)',
+                        }
+                      : { background: 'rgba(0,0,0,0.22)', borderColor: 'var(--table-edge)' }
+                  }
                 >
-                  <div className="font-bold text-sm text-white flex items-center gap-2">
+                  <div className="font-bold text-sm flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
                     {p.isBot && <Bot className="w-4 h-4 text-[var(--color-accent)]" />}
                     <span>{p.name}</span>
                   </div>
-                  <div className="text-xs text-emerald-300 mt-1">Punkte: {p.score}</div>
+                  <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Punkte: {p.score}
+                  </div>
                 </div>
               ))}
             </div>

@@ -7,7 +7,6 @@ import { useUIStore } from '../store/uiStore';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { QRCodeSVG } from 'qrcode.react';
 import { Users, Play, Bot, UserPlus, Copy, Check, Tv, Trash2 } from 'lucide-react';
-import ThemeSwitcher from '../components/ThemeSwitcher';
 import BrandLogo from '../components/BrandLogo';
 import { enterPresentationMode } from '../lib/presentation';
 
@@ -124,7 +123,6 @@ export default function Lobby() {
             <Tv className="w-4 h-4 text-[var(--color-text-muted)]" />
             <span>TV-Modus</span>
           </button>
-          <ThemeSwitcher />
         </div>
       </div>
 

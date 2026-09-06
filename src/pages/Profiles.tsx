@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore, type PlayerProfile } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
-import ThemeSwitcher from '../components/ThemeSwitcher';
 import { Plus, Pencil, Trash2, LogOut, X } from 'lucide-react';
 
 const AVATAR_COLORS = ['#d4a24e', '#2dd4bf', '#e07a2e', '#8b5cf6', '#ef4444', '#22c55e'];
@@ -105,7 +104,6 @@ export default function Profiles() {
           </div>
         </button>
         <div className="flex items-center gap-2">
-          <ThemeSwitcher />
           <button
             onClick={() => logout()}
             title="Abmelden"

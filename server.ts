@@ -6,6 +6,9 @@ import { createServer as createViteServer } from 'vite';
 import { initializeApp, cert, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+// The Okey rule engine (what counts as a winning hand) lives in its own
+// module so it can be unit-tested on its own: npm run test:rules.
+import { isJokerTile, findWinningDiscard, winPoints, type OkeyTile } from './okeyRules';
 
 const app = express();
 const httpServer = createServer(app);
@@ -323,135 +326,9 @@ function initOkeyGame(lobby: Lobby) {
 }
 
 // OKEY WIN VALIDATION
-type OkeyTile = { id: number; color: string; value: number };
-
-function isJokerTile(tile: OkeyTile, indicator: OkeyTile | null | undefined): boolean {
-  if (tile.color === 'fake') return true;
-  if (!indicator) return false;
-  const jokerValue = (indicator.value % 13) + 1;
-  return tile.color === indicator.color && tile.value === jokerValue;
-}
-
-// Checks whether `tiles` (excluding jokers, which are passed separately as a count)
-// can be split into valid runs (3+ consecutive values, same color) and sets
-// (3-4 tiles, same value, distinct colors), using `jokerCount` wildcards to fill gaps.
-// Standard Okey win: exactly 14 tiles across groups of size 3 or 4.
-function canFormGroups(tiles: OkeyTile[], jokerCount: number): boolean {
-  if (tiles.length + jokerCount === 0) return true;
-  if (tiles.length + jokerCount < 3) return false;
-
-  // Try forming a set (same value, distinct colors) starting from the first real tile.
-  if (tiles.length > 0) {
-    const first = tiles[0];
-    const sameValue = tiles.filter(t => t.value === first.value);
-    const distinctColors = new Set(sameValue.map(t => t.color));
-    if (distinctColors.size === sameValue.length) {
-      // Try set sizes from largest (4) to smallest (3) using real tiles + jokers
-      for (let size = Math.min(4, sameValue.length + jokerCount); size >= 3; size--) {
-        const realNeeded = Math.min(size, sameValue.length);
-        const jokersNeeded = size - realNeeded;
-        if (jokersNeeded > jokerCount) continue;
-        const used = new Set(sameValue.slice(0, realNeeded).map(t => t.id));
-        const remaining = tiles.filter(t => !used.has(t.id));
-        if (canFormGroups(remaining, jokerCount - jokersNeeded)) return true;
-      }
-    }
-
-    // Try forming a run (consecutive values, same color) that contains the first tile.
-    // A run's positions are 1-13, except the "1" tile may also stand for the
-    // single position right above 13 (so yellow 11-12-13-1 is a valid run) -
-    // but it never wraps further (13-1-2 is not valid). A position of 14
-    // matches a tile whose printed value is 1; every other position matches
-    // its own printed value.
-    //
-    // Unlike sets (capped at 4 - there are only 4 colors), runs have no
-    // upper size limit other than "how many consecutive values exist": per
-    // the official rules, a run is "three or more consecutive tiles of the
-    // same colour" - e.g. a same-color 9-10-11-12-13 run of 5 is one single
-    // valid group, not something that must be chopped into a 3 and a 4.
-    const sameColor = tiles.filter(t => t.color === first.color);
-    const matchAt = (pos: number, used: Set<number>) =>
-      sameColor.find(t => t.value === (pos === 14 ? 1 : pos) && !used.has(t.id));
-
-    // The anchor tile can represent its own value, and - only when it's a 1 -
-    // can also represent the extended top position (14).
-    const effectiveValues = first.value === 1 ? [1, 14] : [first.value];
-    const maxRunSize = Math.min(13, tiles.length + jokerCount);
-
-    for (const anchorValue of effectiveValues) {
-      for (let size = 3; size <= maxRunSize; size++) {
-        // Try every window of length `size` that includes anchorValue.
-        for (let start = anchorValue - size + 1; start <= anchorValue; start++) {
-          const end = start + size - 1;
-          if (start < 1 || end > 14) continue;
-
-          let jokersNeeded = 0;
-          const used = new Set<number>();
-          for (let pos = start; pos <= end; pos++) {
-            const match = matchAt(pos, used);
-            if (match) used.add(match.id);
-            else jokersNeeded++;
-          }
-          if (jokersNeeded <= jokerCount) {
-            const remaining = tiles.filter(t => !used.has(t.id));
-            if (canFormGroups(remaining, jokerCount - jokersNeeded)) return true;
-          }
-        }
-      }
-    }
-  }
-
-  return false;
-}
-
-function isValidRunSetHand(tiles: OkeyTile[], indicator: OkeyTile | null | undefined): boolean {
-  if (tiles.length !== 14) return false;
-  const jokers = tiles.filter(t => isJokerTile(t, indicator));
-  const rest = tiles.filter(t => !isJokerTile(t, indicator));
-  return canFormGroups(rest, jokers.length);
-}
-
-// "Çift" (pairs) win: 7 pairs of matching value+color tiles, jokers fill any pair.
-function isValidPairsHand(tiles: OkeyTile[], indicator: OkeyTile | null | undefined): boolean {
-  if (tiles.length !== 14) return false;
-  const jokers = tiles.filter(t => isJokerTile(t, indicator));
-  const rest = tiles.filter(t => !isJokerTile(t, indicator));
-
-  const counts = new Map<string, number>();
-  rest.forEach(t => {
-    const key = `${t.color}-${t.value}`;
-    counts.set(key, (counts.get(key) || 0) + 1);
-  });
-
-  let neededJokers = 0;
-  for (const count of counts.values()) {
-    if (count === 1) neededJokers += 1;
-    else if (count !== 2) return false; // 3+ of the same tile can't form pairs alone
-  }
-  return neededJokers <= jokers.length;
-}
-
-type WinType = 'runset' | 'pairs';
-
-// Given a 15-tile hand, checks if discarding any one tile leaves a valid
-// winning hand. Also reports which kind of hand it was (sets/runs vs. the
-// "Çift" seven-pairs variant) and whether the winning discard is the joker
-// itself - both feed into the point scoring in the 'declare_win' handler.
-function findWinningDiscard(
-  hand: OkeyTile[],
-  indicator: OkeyTile | null | undefined
-): { tile: OkeyTile; type: WinType } | null {
-  for (let i = 0; i < hand.length; i++) {
-    const remaining = [...hand.slice(0, i), ...hand.slice(i + 1)];
-    if (isValidRunSetHand(remaining, indicator)) {
-      return { tile: hand[i], type: 'runset' };
-    }
-    if (isValidPairsHand(remaining, indicator)) {
-      return { tile: hand[i], type: 'pairs' };
-    }
-  }
-  return null;
-}
+// The rules themselves live in ./okeyRules.ts so they can be unit-tested
+// without booting a server (npm run test:rules). Nothing about "is this a
+// winning hand" is decided here any more - only what happens afterwards.
 
 // TAVLA (BACKGAMMON) LOGIC
 function initTavlaGame(lobby: Lobby) {
@@ -709,6 +586,15 @@ function broadcastGameState(lobby: Lobby) {
     diceRolled: gs.diceRolled || false,
     winner: gs.winner || null,
     logs: gs.logs || [],
+    // How many tiles each player is holding. The tiles themselves stay
+    // private (only their owner gets 'hand_updated'), but the count is
+    // public information at a real table - you can see everyone's rack.
+    handCounts: gs.hands
+      ? lobby.players.reduce((acc: Record<string, number>, p) => {
+          acc[p.id] = (gs.hands[p.id] || []).length;
+          return acc;
+        }, {})
+      : {},
   };
 
   io.to(lobby.id).emit('lobby_updated', lobby);
@@ -1287,7 +1173,7 @@ io.on('connection', (socket) => {
     // ends on its own.
     const jokerDiscardWin = isJokerTile(winningDiscard, gs.indicator);
     const scoringOn = lobby.scoringEnabled !== false;
-    const pointsLost = scoringOn ? (winType === 'pairs' || jokerDiscardWin ? 4 : 2) : 0;
+    const pointsLost = scoringOn ? winPoints(winType, jokerDiscardWin) : 0;
     if (scoringOn) {
       lobby.players.forEach(p => {
         if (p.id !== winner.id) p.score -= pointsLost;

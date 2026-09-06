@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type DragEvent } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { useSoundStore } from '../store/soundStore';
-import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles, Wand2, Bot } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 
 interface Tile {
@@ -35,6 +35,17 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   const [rackSlots, setRackSlots] = useState<(Tile | null)[]>(Array(TOTAL_SLOTS).fill(null));
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
 
+  // A phone held in landscape is only ~400-450px tall, and the rack has to
+  // stay fully visible under the table - so the tiles drop a size there.
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-height: 560px)');
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
   // Touch drag tracking
   const touchStartSlotRef = useRef<number | null>(null);
 
@@ -50,8 +61,6 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     }
     wasMyTurnRef.current = isMyTurn;
   }, [isMyTurn, playSound]);
-
-  if (!publicGameState || !lobby) return null;
 
   const iHaveDrawn = hand.length === 15;
 
@@ -132,6 +141,11 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     playSound('gosterme');
     declareGosterme(lobbyId);
   };
+
+  // Every hook above runs unconditionally - bailing out earlier (as this
+  // component used to) changes the hook order between renders, which React
+  // refuses to do once the game state arrives.
+  if (!publicGameState || !lobby) return null;
 
   // Swap slots (Works anytime!)
   const swapSlots = (fromIdx: number, toIdx: number) => {
@@ -341,14 +355,31 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     setSelectedSlotIndex(null);
   };
 
-  // Discard pile info
-  const prevPlayerIndex = (publicGameState.turnIndex - 1 + lobby.players.length) % lobby.players.length;
-  const prevPlayer = lobby.players[prevPlayerIndex];
-  const prevDiscardList = publicGameState.discardPiles[prevPlayer?.id] || [];
-  const topPrevDiscard = prevDiscardList[prevDiscardList.length - 1];
 
-  const myDiscardList = publicGameState.discardPiles[socket?.id || ''] || [];
-  const myTopDiscard = myDiscardList[myDiscardList.length - 1];
+  // --- Table layout ---------------------------------------------------
+  // Everyone at the table, starting with the player to my left (i.e. the
+  // one who plays after me), so the row reads in turn order. Each opponent
+  // shows their name, how many tiles they're holding and the tile they
+  // discarded last - at a real table you can see all of that.
+  const myIndex = lobby.players.findIndex((p: any) => p.id === socket?.id);
+  const seatCount = lobby.players.length;
+  const opponents =
+    myIndex === -1
+      ? lobby.players
+      : Array.from({ length: seatCount - 1 }, (_, i) => lobby.players[(myIndex + 1 + i) % seatCount]);
+
+  // Okey only lets you pick up the tile the player before you just threw.
+  const prevPlayerIndex = (publicGameState.turnIndex - 1 + seatCount) % seatCount;
+  const prevPlayer = lobby.players[prevPlayerIndex];
+
+  const lastDiscardOf = (playerId: string) => {
+    const pile = publicGameState.discardPiles?.[playerId] || [];
+    return pile[pile.length - 1];
+  };
+  const handCountOf = (playerId: string) => publicGameState.handCounts?.[playerId];
+
+  const myTopDiscard = lastDiscardOf(socket?.id || '');
+  const canTakeDiscard = isMyTurn && !iHaveDrawn && Boolean(lastDiscardOf(prevPlayer?.id));
 
   const topRowSlots = rackSlots.slice(0, 15);
   const bottomRowSlots = rackSlots.slice(15, 30);
@@ -370,133 +401,216 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         className="cursor-pointer select-none flex-shrink-0 transition-transform"
       >
         {tile ? (
-          <OkeyTile tile={tile} selected={isSelected} />
+          <OkeyTile tile={tile} selected={isSelected} size={compact ? 'sm' : 'md'} />
         ) : (
-          <EmptyOkeyTileSlot index={slotIdx} />
+          <EmptyOkeyTileSlot index={slotIdx} size={compact ? 'sm' : 'md'} />
         )}
       </div>
     );
   };
+  // One opponent: name, the tile they discarded last (tappable when it's
+  // your turn and they're the player before you), and their tile count.
+  // Laid out flat in landscape, stacked in portrait.
+  const renderOpponent = (p: any) => {
+    const isTheirTurn = lobby.players[publicGameState.turnIndex]?.id === p.id;
+    const discard = lastDiscardOf(p.id);
+    const takeable = canTakeDiscard && p.id === prevPlayer?.id;
+    const count = handCountOf(p.id);
 
-  return (
-    <div className="flex flex-col h-full justify-between gap-2 sm:gap-3">
-      {/* Table Center & Draw Action Panel */}
-      <div className="p-2.5 sm:p-4 bg-slate-900/95 border border-slate-800 rounded-2xl sm:rounded-3xl flex flex-col justify-between flex-1 shadow-xl">
-        {/* Header Bar */}
-        <div className="flex items-center justify-between pb-2 border-b border-slate-800/80 mb-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] sm:text-xs text-slate-400 font-medium">Gösterge:</span>
-            {publicGameState.indicator ? (
-              <OkeyTile tile={publicGameState.indicator} size="xs" />
-            ) : (
-              <span className="text-xs text-slate-500">-</span>
-            )}
-          </div>
-
-          <div className="text-[11px] sm:text-xs text-slate-300 font-mono flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-amber-400" />
-            <span>Stapel:</span>
-            <span className="text-amber-400 font-black text-xs sm:text-sm">{publicGameState.pileCount}</span>
-          </div>
-        </div>
-
-        {/* Draw & Discard Targets */}
-        <div className="grid grid-cols-3 gap-2 my-1">
-          {/* Draw Discard Button */}
-          <button
-            onClick={handleDrawDiscard}
-            disabled={!isMyTurn || iHaveDrawn}
-            className="p-2 sm:p-2.5 bg-slate-800/90 border border-slate-700 hover:border-amber-500/60 disabled:opacity-40 rounded-xl flex flex-col items-center justify-center transition shadow-sm group"
+    return (
+      <button
+        key={p.id}
+        onClick={takeable ? handleDrawDiscard : undefined}
+        disabled={!takeable}
+        title={takeable ? `Stein von ${p.name} aufnehmen` : p.name}
+        className={`min-w-0 flex ${
+          compact ? 'flex-row items-center gap-2 px-2 py-1' : 'flex-1 flex-col items-center gap-0.5 px-1.5 py-1'
+        } rounded-xl transition disabled:cursor-default ${takeable ? 'cursor-pointer active:scale-[0.97]' : ''}`}
+        style={{
+          background: isTheirTurn
+            ? 'color-mix(in srgb, var(--color-accent) 22%, transparent)'
+            : 'var(--table-inset)',
+          border: `1px solid ${
+            takeable
+              ? 'var(--color-accent)'
+              : isTheirTurn
+              ? 'color-mix(in srgb, var(--color-accent) 55%, transparent)'
+              : 'var(--table-edge)'
+          }`,
+          boxShadow: takeable ? '0 0 0 2px color-mix(in srgb, var(--color-accent) 40%, transparent)' : undefined,
+        }}
+      >
+        {discard ? (
+          <OkeyTile tile={discard} size="xs" />
+        ) : (
+          <span
+            className="flex-shrink-0 flex items-center justify-center w-6 h-9 rounded-md border border-dashed text-[8px]"
+            style={{ borderColor: 'var(--slot-empty-border)', color: 'var(--color-text-muted)' }}
           >
-            <span className="text-[9px] sm:text-[10px] font-semibold text-slate-400 mb-0.5 truncate max-w-full">
-              Von {prevPlayer?.name}
-            </span>
-            {topPrevDiscard ? (
-              <div className="group-hover:scale-110 transition">
-                <OkeyTile tile={topPrevDiscard} size="xs" />
-              </div>
-            ) : (
-              <span className="text-[10px] text-slate-600 italic">Leer</span>
-            )}
-          </button>
-
-          {/* Draw Pile Button */}
-          <button
-            onClick={handleDrawPile}
-            disabled={!isMyTurn || iHaveDrawn}
-            className="p-2 sm:p-2.5 bg-emerald-950/80 border border-emerald-700/60 hover:bg-emerald-900/80 disabled:opacity-40 rounded-xl flex flex-col items-center justify-center transition shadow-sm group"
-          >
-            <span className="text-[9px] sm:text-[10px] font-semibold text-emerald-300 mb-0.5">Vom Stapel</span>
-            <span className="text-xl sm:text-2xl font-black text-white group-hover:scale-110 transition">
-              {publicGameState.pileCount}
-            </span>
-          </button>
-
-          {/* My Discard Drop Target Box */}
-          <div
-            onDragOver={handleDragOver}
-            onDrop={handleDropDiscardZone}
-            onClick={() => {
-              if (selectedTile && isMyTurn && iHaveDrawn) {
-                handleDiscard();
-              }
-            }}
-            className={`p-2 sm:p-2.5 rounded-xl border flex flex-col items-center justify-center transition shadow-sm ${
-              isMyTurn && iHaveDrawn
-                ? 'bg-red-950/50 border-red-500/80 ring-2 ring-red-500/30 cursor-pointer animate-pulse'
-                : 'bg-slate-800/50 border-slate-700/50'
-            }`}
-          >
-            <span className="text-[9px] sm:text-[10px] font-semibold text-red-300 mb-0.5">Deine Ablage</span>
-            {myTopDiscard ? (
-              <OkeyTile tile={myTopDiscard} size="xs" />
-            ) : (
-              <span className="text-[9px] text-slate-500 italic">Hier abwerfen</span>
-            )}
-          </div>
-        </div>
-
-        {/* Gösterme bonus - only shown while it's actually claimable */}
-        {gostermeEligible && (
-          <button
-            onClick={handleDeclareGosterme}
-            className="mt-1 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-1.5 animate-pulse"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Gösterme zeigen (-1 Punkt für alle Gegner)</span>
-          </button>
+            –
+          </span>
         )}
 
-        {/* Main Action Controls */}
-        <div className="grid grid-cols-2 gap-2 mt-1">
-          <button
-            onClick={() => handleDiscard()}
-            disabled={!isMyTurn || !iHaveDrawn || !selectedTile}
-            className="py-2.5 bg-red-600 hover:bg-red-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-1"
-          >
-            <ArrowDown className="w-3.5 h-3.5" />
-            <span>
-              {selectedTile ? `Stein ${selectedTile.value} Abwerfen` : 'Stein Abwerfen'}
+        <span className={`min-w-0 flex flex-col ${compact ? 'items-start' : 'items-center'}`}>
+          <span className="flex items-center gap-1 max-w-full">
+            {p.isBot && <Bot className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />}
+            <span
+              className="text-[10px] sm:text-xs font-bold truncate"
+              style={{ color: isTheirTurn ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+            >
+              {p.name}
             </span>
-          </button>
-
-          <button
-            onClick={handleDeclareWin}
-            disabled={!isMyTurn || !iHaveDrawn}
-            className="py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-1"
+          </span>
+          <span
+            className="text-[9px] leading-none"
+            style={{ color: takeable ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
           >
-            <Trophy className="w-3.5 h-3.5 text-amber-300" />
-            <span>Okey Gewinnen</span>
-          </button>
+            {takeable ? 'aufnehmen' : typeof count === 'number' ? `${count} Steine` : ''}
+          </span>
+        </span>
+      </button>
+    );
+  };
+
+  // Middle of the table: draw pile, the indicator, and my own discard slot.
+  const renderCentre = () => (
+    <div className="flex items-center justify-center gap-2 sm:gap-4">
+      <button
+        onClick={handleDrawPile}
+        disabled={!isMyTurn || iHaveDrawn}
+        className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition disabled:opacity-45 active:scale-[0.97]"
+        style={{
+          background: 'var(--table-inset)',
+          border: `1px solid ${isMyTurn && !iHaveDrawn ? 'var(--color-accent)' : 'var(--table-edge)'}`,
+        }}
+      >
+        <Layers className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
+        <span className="text-base sm:text-xl font-black leading-none" style={{ color: 'var(--color-text)' }}>
+          {publicGameState.pileCount}
+        </span>
+        <span className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
+          Stapel
+        </span>
+      </button>
+
+      <div
+        className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl"
+        style={{ background: 'var(--table-inset)', border: '1px solid var(--table-edge)' }}
+      >
+        {publicGameState.indicator ? (
+          <OkeyTile tile={publicGameState.indicator} size="xs" className="ring-2 ring-[var(--color-accent)]/60" />
+        ) : (
+          <span style={{ color: 'var(--color-text-muted)' }}>–</span>
+        )}
+        <span className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--color-accent)' }}>
+          Gösterge
+        </span>
+      </div>
+
+      <div
+        onDragOver={handleDragOver}
+        onDrop={handleDropDiscardZone}
+        onClick={() => {
+          if (selectedTile && isMyTurn && iHaveDrawn) handleDiscard();
+        }}
+        className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition ${
+          isMyTurn && iHaveDrawn ? 'cursor-pointer animate-pulse' : ''
+        }`}
+        style={{
+          background: 'var(--table-inset)',
+          border: `1px solid ${isMyTurn && iHaveDrawn ? '#ef4444' : 'var(--table-edge)'}`,
+        }}
+      >
+        {myTopDiscard ? (
+          <OkeyTile tile={myTopDiscard} size="xs" />
+        ) : (
+          <span
+            className="flex items-center justify-center w-6 h-9 rounded-md border border-dashed text-[8px]"
+            style={{ borderColor: 'var(--slot-empty-border)', color: 'var(--color-text-muted)' }}
+          >
+            –
+          </span>
+        )}
+        <span className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
+          Ablage
+        </span>
+      </div>
+    </div>
+  );
+
+  const renderActions = () => (
+    <div className="flex flex-col gap-1.5">
+      {gostermeEligible && (
+        <button
+          onClick={handleDeclareGosterme}
+          className="py-1.5 rounded-xl font-bold text-[11px] shadow transition flex items-center justify-center gap-1.5 animate-pulse"
+          style={{ background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Gösterme zeigen (-1 Punkt für alle Gegner)</span>
+        </button>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => handleDiscard()}
+          disabled={!isMyTurn || !iHaveDrawn || !selectedTile}
+          className="py-2 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-1"
+        >
+          <ArrowDown className="w-3.5 h-3.5" />
+          <span className="truncate">{selectedTile ? `Stein ${selectedTile.value} Abwerfen` : 'Stein Abwerfen'}</span>
+        </button>
+
+        <button
+          onClick={handleDeclareWin}
+          disabled={!isMyTurn || !iHaveDrawn}
+          className="py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-1"
+        >
+          <Trophy className="w-3.5 h-3.5 text-amber-300" />
+          <span className="truncate">Okey Gewinnen</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0 justify-between gap-2 sm:gap-3">
+      {/* ---------- THE TABLE ---------- */}
+      {/* Portrait: opponents on top, table centre below. Landscape (short
+          and wide): opponents down the left, centre and actions on the
+          right - otherwise the rack gets pushed off the bottom edge. */}
+      <div
+        className={`relative flex flex-1 min-h-0 p-2 sm:p-3 rounded-2xl sm:rounded-3xl shadow-xl ${
+          compact ? 'flex-row items-stretch gap-3' : 'flex-col justify-between gap-1.5 sm:gap-2'
+        }`}
+        style={{ background: 'var(--table-felt)', border: '2px solid var(--table-edge)' }}
+      >
+        <div
+          className={
+            compact
+              ? 'flex flex-col justify-center gap-1.5 w-[38%] max-w-[15rem]'
+              : 'flex items-stretch justify-center gap-1.5 sm:gap-3'
+          }
+        >
+          {opponents.map(renderOpponent)}
+        </div>
+
+        <div className={compact ? 'flex-1 min-w-0 flex flex-col justify-center gap-2' : 'contents'}>
+          {renderCentre()}
+          {renderActions()}
         </div>
       </div>
 
-      {/* ISTAKA RACK (OPTIMIZED SIZES FOR S25 LANDSCAPE & MOBILE) */}
-      <div className="bg-amber-950/80 border-2 border-amber-900 rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 shadow-2xl backdrop-blur relative">
-        {/* Rack Header & Reorder Controls */}
-        <div className="flex items-center justify-between mb-2 px-1">
+      {/* ---------- ISTAKA (the wooden rack) ---------- */}
+      <div
+        className="rounded-2xl sm:rounded-3xl p-2 sm:p-3 shadow-2xl relative flex-shrink-0"
+        style={{ background: 'var(--rack-wood)', border: '2px solid var(--rack-wood-edge)' }}
+      >
+        <div className="flex items-center justify-between mb-1.5 px-1">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-400">
+            <span
+              className="text-xs sm:text-sm font-black uppercase tracking-wider"
+              style={{ color: 'var(--color-accent)' }}
+            >
               Istaka ({hand.length})
             </span>
             {iHaveDrawn && isMyTurn && (
@@ -507,34 +621,36 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           </div>
 
           <div className="flex items-center gap-1.5">
-            {/* Quick Shift buttons when a tile is selected */}
             {selectedSlotIndex !== null && (
-              <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700 p-0.5 rounded-lg">
+              <div
+                className="flex items-center gap-1 p-0.5 rounded-lg"
+                style={{ background: 'var(--table-inset)', border: '1px solid var(--rack-wood-edge)' }}
+              >
                 <button
                   onClick={moveSelectedLeft}
                   disabled={selectedSlotIndex === 0}
-                  className="px-1.5 py-0.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white rounded text-[10px] font-bold transition flex items-center"
+                  className="px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center disabled:opacity-30"
+                  style={{ background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
                   title="Nach links verschieben"
                 >
                   <ChevronLeft className="w-3 h-3" />
-                  <span>Links</span>
                 </button>
                 <button
                   onClick={moveSelectedRight}
                   disabled={selectedSlotIndex === TOTAL_SLOTS - 1}
-                  className="px-1.5 py-0.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white rounded text-[10px] font-bold transition flex items-center"
+                  className="px-1.5 py-0.5 rounded text-[10px] font-bold transition flex items-center disabled:opacity-30"
+                  style={{ background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
                   title="Nach rechts verschieben"
                 >
-                  <span>Rechts</span>
                   <ChevronRight className="w-3 h-3" />
                 </button>
               </div>
             )}
 
-            {/* Auto Sort Buttons */}
             <button
               onClick={sortByGroups}
-              className="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold border border-emerald-500 transition flex items-center gap-1 shadow-sm"
+              className="px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
               title="Ordnet Reihen & Sätze automatisch zusammen"
             >
               <Wand2 className="w-3 h-3" />
@@ -542,30 +658,29 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
             </button>
             <button
               onClick={sortByColor}
-              className="px-2 py-1 bg-amber-900/80 hover:bg-amber-800 text-amber-200 rounded-lg text-[11px] font-bold border border-amber-700 transition flex items-center gap-1 shadow-sm"
+              className="px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+              style={{ background: 'var(--table-inset)', color: 'var(--color-text)', border: '1px solid var(--rack-wood-edge)' }}
             >
-              <Palette className="w-3 h-3 text-amber-400" />
+              <Palette className="w-3 h-3" />
               <span>Farbe</span>
             </button>
             <button
               onClick={sortByValue}
-              className="px-2 py-1 bg-amber-900/80 hover:bg-amber-800 text-amber-200 rounded-lg text-[11px] font-bold border border-amber-700 transition flex items-center gap-1 shadow-sm"
+              className="px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+              style={{ background: 'var(--table-inset)', color: 'var(--color-text)', border: '1px solid var(--rack-wood-edge)' }}
             >
-              <Hash className="w-3 h-3 text-amber-400" />
+              <Hash className="w-3 h-3" />
               <span>Zahl</span>
             </button>
           </div>
         </div>
 
-        {/* 2-ROW RACK PERFECTLY SIZED FOR PHONES IN LANDSCAPE MODE */}
+        {/* Two rows, sized to fit a phone in landscape */}
         <div className="overflow-x-auto pb-1 pt-1 max-w-full scrollbar-none">
           <div className="flex flex-col gap-2 min-w-max px-0.5">
-            {/* Top Row (Slots 0 - 14) */}
             <div className="flex items-center gap-1 sm:gap-1.5">
               {topRowSlots.map((tile, idx) => renderSlotTile(tile, idx))}
             </div>
-
-            {/* Bottom Row (Slots 15 - 29) */}
             <div className="flex items-center gap-1 sm:gap-1.5">
               {bottomRowSlots.map((tile, idx) => renderSlotTile(tile, 15 + idx))}
             </div>

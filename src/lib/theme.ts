@@ -1,8 +1,11 @@
-// Only two palettes now, both part of the same modern design (identical
-// accent/CTA colors, just light vs. dark surfaces) - the old warm-brown
-// "Kahvehane" theme was dropped since it didn't fit and the user asked for
-// the app to be visually consistent with the modern look throughout.
-export type ThemeId = 'modern-dark' | 'light';
+// Three palettes:
+//  - "klassik" is the real card-table look (green felt, wooden rack, ivory
+//    tiles, brass accents) that the whole game is designed around.
+//  - "modern-dark" / "light" are the two variants of the flat modern look;
+//    they share accent and CTA colors and only swap surfaces.
+// (The old warm-brown "Kahvehane" theme was dropped - brown everywhere was
+// exactly what didn't work. Klassik uses wood only as trim on green felt.)
+export type ThemeId = 'klassik' | 'modern-dark' | 'light';
 
 export interface ThemeDef {
   id: ThemeId;
@@ -11,14 +14,15 @@ export interface ThemeDef {
 }
 
 export const THEMES: ThemeDef[] = [
-  { id: 'modern-dark', label: 'Dunkel', description: 'Anthrazit & Türkis' },
-  { id: 'light', label: 'Hell', description: 'Weiß & Türkis' },
+  { id: 'klassik', label: 'Klassik', description: 'Grüner Filz & Holz' },
+  { id: 'modern-dark', label: 'Modern', description: 'Anthrazit & Türkis' },
+  { id: 'light', label: 'Modern Hell', description: 'Weiß & Türkis' },
 ];
 
 const STORAGE_KEY = 'masa-oyunlari-theme';
 
 function isThemeId(value: string | null): value is ThemeId {
-  return value === 'modern-dark' || value === 'light';
+  return value === 'klassik' || value === 'modern-dark' || value === 'light';
 }
 
 export function getStoredTheme(): ThemeId {
@@ -26,18 +30,13 @@ export function getStoredTheme(): ThemeId {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (isThemeId(stored)) return stored;
     // An old "coffeehouse" (or otherwise unrecognised) value from before
-    // the theme cleanup - fall through to a sensible default instead.
+    // the theme cleanup - fall through to the default instead.
   } catch {
     // localStorage unavailable - fall through to default
   }
-  try {
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'modern-dark';
-    }
-  } catch {
-    // matchMedia unavailable - fall through to default
-  }
-  return 'light';
+  // Klassik is the default for anyone who hasn't chosen yet: it's the look
+  // the game is actually built around, and it says "board game" at a glance.
+  return 'klassik';
 }
 
 export function applyTheme(theme: ThemeId) {

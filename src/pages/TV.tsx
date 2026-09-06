@@ -284,7 +284,10 @@ export default function TV() {
           
           {publicGameState.gameType === 'okey' ? (
             /* Okey TV Layout */
-            <div className="w-full max-w-6xl h-full min-h-[460px] bg-emerald-950/70 border-4 border-emerald-900/80 rounded-3xl p-8 relative flex flex-col items-center justify-center shadow-2xl">
+            <div
+              className="w-full max-w-6xl h-full min-h-[460px] rounded-3xl p-8 relative flex flex-col items-center justify-center shadow-2xl"
+              style={{ background: 'var(--table-felt)', border: '4px solid var(--table-edge)' }}
+            >
               
               {/* Central Draw Pile & Gösterge */}
               <div className="flex items-center gap-10 bg-[var(--color-surface)] border border-[var(--color-border)] px-10 py-8 rounded-3xl shadow-2xl z-10">
