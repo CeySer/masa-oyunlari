@@ -229,28 +229,46 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
 
   const iHaveDrawn = hand.length === 15;
 
-  // Auto-sort is always on: whenever a genuinely new tile appears in the
-  // hand (the opening deal, or a draw), the whole rack is re-grouped into
-  // runs/sets automatically - no button, no manual step. A plain broadcast
-  // that leaves the hand's actual tiles unchanged (very common - it fires on
-  // every bot move elsewhere at the table) must NOT re-trigger this, or the
-  // rack would jump around on its own for no reason, so this only acts when
-  // the tile ids themselves differ from what the rack currently shows.
+  // Auto-sort only ever runs ONCE, right when a fresh hand is dealt - not on
+  // every single draw. A draw just slots the new tile into the next empty
+  // spot, keeping every tile you've since dragged into place exactly where
+  // you put it; only the opening deal gets the automatic run/set grouping.
+  // (A plain broadcast that leaves the hand's actual tiles unchanged - very
+  // common, it fires on every bot move elsewhere at the table - must not
+  // touch the rack at all, so this only acts when the tile ids themselves
+  // differ from what the rack currently shows.)
   useEffect(() => {
     const handMap = new Map(hand.map((t) => [Number(t.id), t]));
     const currentIds = new Set(rackSlots.filter((t): t is Tile => t !== null).map((t) => Number(t.id)));
     const missingTiles = hand.filter((t) => !currentIds.has(Number(t.id)));
+    const isFreshDeal = hand.length >= 14 && missingTiles.length === hand.length;
 
-    if (missingTiles.length > 0) {
+    if (isFreshDeal) {
       setRackSlots(computeGroupedSlots(hand as Tile[], publicGameState?.indicator));
-      setDealingTileIds(new Set(missingTiles.map((t) => Number(t.id))));
+      setDealingTileIds(new Set(hand.map((t) => Number(t.id))));
       const timer = setTimeout(() => setDealingTileIds(new Set()), DEAL_ANIM_MS);
       return () => clearTimeout(timer);
     }
 
-    // Nothing new - just drop whatever left the hand (a discard) and keep
-    // the rest exactly where they were.
-    setRackSlots((prevSlots) => prevSlots.map(t => (t && handMap.has(Number(t.id)) ? handMap.get(Number(t.id))! : null)));
+    setRackSlots((prevSlots) => {
+      const nextSlots = prevSlots.map(t => (t && handMap.has(Number(t.id)) ? handMap.get(Number(t.id))! : null));
+      const presentIds = new Set(nextSlots.filter((t): t is Tile => t !== null).map(t => Number(t.id)));
+      const stillMissing = hand.filter(t => !presentIds.has(Number(t.id)));
+
+      let missingIdx = 0;
+      for (let i = 0; i < nextSlots.length && missingIdx < stillMissing.length; i++) {
+        if (nextSlots[i] === null) {
+          nextSlots[i] = stillMissing[missingIdx++];
+        }
+      }
+      return nextSlots;
+    });
+
+    if (missingTiles.length > 0) {
+      setDealingTileIds(new Set(missingTiles.map((t) => Number(t.id))));
+      const timer = setTimeout(() => setDealingTileIds(new Set()), DEAL_ANIM_MS);
+      return () => clearTimeout(timer);
+    }
 
     if (hand.length === 14 && selectedSlotIndex !== null) {
       if (!hand.some(t => Number(t.id) === Number(rackSlots[selectedSlotIndex]?.id))) {
