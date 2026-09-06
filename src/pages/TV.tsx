@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { QRCodeSVG } from 'qrcode.react';
-import { Tv, Trophy, Bot, Users, Sparkles, Activity, Play, PlusCircle } from 'lucide-react';
+import { Tv, Trophy, Bot, Users, Sparkles, Activity, Play, PlusCircle, Maximize } from 'lucide-react';
 import { OkeyTile } from '../components/OkeyTile';
 
 export default function TV() {
@@ -14,6 +14,31 @@ export default function TV() {
   const [lobbyIdInput, setLobbyIdInput] = useState(id || '');
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
   const [connected, setConnected] = useState(false);
+
+  // A TV/big-screen view reads best edge-to-edge in landscape - request both
+  // right when the user taps a button (a real gesture, which both APIs
+  // require) rather than trying it on mount. Neither is universally
+  // supported (desktop browsers ignore the orientation lock entirely, and
+  // some mobile browsers restrict fullscreen too), so every step is
+  // best-effort: the TV view still reads fine without it.
+  const enterPresentationMode = async () => {
+    try {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        await el.requestFullscreen();
+      }
+    } catch {
+      // ignored - optional
+    }
+    try {
+      const orientation = (screen as any).orientation;
+      if (orientation?.lock) {
+        await orientation.lock('landscape');
+      }
+    } catch {
+      // ignored - not supported everywhere (usually needs fullscreen + mobile)
+    }
+  };
 
   useEffect(() => {
     if (socket && id) {
@@ -27,6 +52,7 @@ export default function TV() {
 
   const joinAsTV = () => {
     if (!lobbyIdInput) return;
+    enterPresentationMode();
     socket?.emit('join_lobby', { lobbyId: lobbyIdInput.toUpperCase(), role: 'tv' }, (res: any) => {
       if (res.success) {
         setConnected(true);
@@ -38,6 +64,7 @@ export default function TV() {
   };
 
   const createTVLobby = () => {
+    enterPresentationMode();
     socket?.emit('create_tv_lobby', { gameType }, (res: any) => {
       if (res.success) {
         setConnected(true);
@@ -140,8 +167,18 @@ export default function TV() {
 
     return (
       <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col items-center justify-between p-8 select-none font-sans">
-        
+
         {/* Header */}
+        <div className="w-full flex justify-end">
+          <button
+            onClick={enterPresentationMode}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-xs text-[var(--color-text-muted)] font-semibold rounded-xl border border-[var(--color-border-strong)] transition"
+            title="Vollbild & Querformat"
+          >
+            <Maximize className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Vollbild</span>
+          </button>
+        </div>
         <div className="text-center mt-4">
           <div className="inline-flex items-center gap-2 bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] px-5 py-1.5 rounded-full text-xs font-bold text-[var(--color-accent)] uppercase tracking-widest mb-2 shadow-lg">
             <Tv className="w-4 h-4 text-[var(--color-accent)]" /> TV / GROSSBILDSCHIRM LOBBY
@@ -252,8 +289,17 @@ export default function TV() {
             <span>Am Zug: {currentPlayer?.name}</span>
           </div>
 
-          <div className="font-mono text-sm font-bold text-[var(--color-text-muted)]">
-            Lobby-Code: <span className="text-[var(--color-accent)] font-black">{lobby.id}</span>
+          <div className="flex items-center gap-3">
+            <div className="font-mono text-sm font-bold text-[var(--color-text-muted)]">
+              Lobby-Code: <span className="text-[var(--color-accent)] font-black">{lobby.id}</span>
+            </div>
+            <button
+              onClick={enterPresentationMode}
+              className="p-2 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-xl border border-[var(--color-border-strong)] transition"
+              title="Vollbild & Querformat"
+            >
+              <Maximize className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -378,15 +424,20 @@ export default function TV() {
           <ul className="space-y-4">
             {lobby.players
               .sort((a: any, b: any) => b.score - a.score)
-              .map((p: any, idx: number) => (
-                <li key={p.id} className="flex justify-between items-center text-xl">
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-[var(--color-accent)]">#{idx + 1}</span>
-                    <span>{p.name}</span>
-                  </div>
-                  <span className="font-black text-emerald-400">{p.score} Pkt</span>
-                </li>
-              ))}
+              .map((p: any, idx: number) => {
+                const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
+                return (
+                  <li key={p.id} className="flex justify-between items-center text-xl">
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-[var(--color-accent)] w-8 text-center">
+                        {medal || `#${idx + 1}`}
+                      </span>
+                      <span>{p.name}</span>
+                    </div>
+                    <span className="font-black text-emerald-400">{p.score} Pkt</span>
+                  </li>
+                );
+              })}
           </ul>
         </div>
       </div>

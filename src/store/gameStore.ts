@@ -40,6 +40,11 @@ interface GameState {
   gameResult: GameResult | null;
   winRejectedMessage: string | null;
   moveRejectedMessage: string | null;
+  gostermeMessage: string | null;
+  // Whether the game state you're currently in makes you eligible to
+  // declare "Gösterme" right now (a tile matching the indicator, and you
+  // haven't drawn yet this hand) - see server.ts's 'gosterme_eligible'.
+  gostermeEligible: boolean;
   // Keyed by lobbyId. Open lobbies from other profiles under this account -
   // see subscribeAccount() and server.ts's 'account_lobby_status' event.
   accountLobbies: Record<string, AccountLobbyStatus>;
@@ -52,6 +57,8 @@ interface GameState {
   clearGameResult: () => void;
   clearWinRejectedMessage: () => void;
   clearMoveRejectedMessage: () => void;
+  clearGostermeMessage: () => void;
+  declareGosterme: (lobbyId: string) => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -64,6 +71,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   gameResult: null,
   winRejectedMessage: null,
   moveRejectedMessage: null,
+  gostermeMessage: null,
+  gostermeEligible: false,
   accountLobbies: {},
   connectSocket: () => {
     if (!get().socket) {
@@ -128,6 +137,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ moveRejectedMessage: message });
       });
 
+      socket.on('gosterme_eligible', (eligible: boolean) => {
+        set({ gostermeEligible: eligible });
+      });
+
       // Real-time updates for lobbies opened by OTHER profiles under this
       // same account - the initial snapshot comes back from the
       // 'subscribe_account' callback instead (see subscribeAccount below).
@@ -159,4 +172,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   clearGameResult: () => set({ gameResult: null }),
   clearWinRejectedMessage: () => set({ winRejectedMessage: null }),
   clearMoveRejectedMessage: () => set({ moveRejectedMessage: null }),
+  clearGostermeMessage: () => set({ gostermeMessage: null }),
+  declareGosterme: (lobbyId: string) => {
+    const socket = get().socket;
+    socket?.emit('declare_gosterme', { lobbyId }, (res: { success: boolean; error?: string }) => {
+      if (!res?.success) {
+        set({ gostermeMessage: res?.error || 'Gösterme konnte nicht gezeigt werden.' });
+      }
+    });
+  },
 }));

@@ -307,6 +307,13 @@ function initOkeyGame(lobby: Lobby) {
     discardPiles: players.reduce((acc, p) => ({ ...acc, [p.id]: [] }), {} as Record<string, any[]>),
     winner: null,
     logs: [],
+    // "Gösterme" bonus (see declare_gosterme): who has drawn a tile yet this
+    // hand (the bonus is only claimable before your own first draw) and who
+    // has already claimed it this hand. Internal only - never sent to
+    // clients (broadcastGameState only forwards a fixed set of public
+    // fields), each player's own eligibility is reported separately below.
+    drawnThisHand: {} as Record<string, boolean>,
+    gostermeDeclared: {} as Record<string, boolean>,
   };
   lobby.status = 'playing';
 
@@ -711,6 +718,15 @@ function broadcastGameState(lobby: Lobby) {
     lobby.players.forEach(p => {
       if (!p.isBot) {
         io.to(p.id).emit('hand_updated', gs.hands[p.id] || []);
+        if (lobby.gameType === 'okey') {
+          const hand = gs.hands[p.id] || [];
+          const indicator = gs.indicator;
+          const hasMatch = indicator && hand.some((t: OkeyTile) => t.color === indicator.color && t.value === indicator.value);
+          const eligible = Boolean(
+            hasMatch && !gs.drawnThisHand?.[p.id] && !gs.gostermeDeclared?.[p.id]
+          );
+          io.to(p.id).emit('gosterme_eligible', eligible);
+        }
       }
     });
   }
@@ -1191,15 +1207,25 @@ io.on('connection', (socket) => {
 
     if (tile) {
       hand.push(tile);
+      // Drawing closes the window for this player's "Gösterme" bonus (it's
+      // only claimable before your own first draw of the hand).
+      if (!gs.drawnThisHand) gs.drawnThisHand = {};
+      gs.drawnThisHand[currentPlayer.id] = true;
       broadcastGameState(lobby);
     } else if (source === 'pile' && gs.pile.length === 0) {
       // No tiles left anywhere to draw - the round ends in a draw (no winner).
       addLog(lobby, `⚠️ Der Stapel ist leer. Runde endet unentschieden.`);
       lobby.status = 'finished';
-      // No points change on a draw, so the match itself never ends here.
-      lobby.matchOver = false;
+      // A draw itself never costs anyone points - but a Gösterme bonus
+      // claimed earlier in this same hand can already have dropped someone
+      // to 0, so the match can still be over even though nobody won.
+      const matchOver = lobby.scoringEnabled !== false && lobby.players.some(p => p.score <= 0);
+      lobby.matchOver = matchOver;
+      const matchWinners = matchOver
+        ? [...lobby.players].sort((a, b) => b.score - a.score).slice(0, 2)
+        : null;
       io.to(lobbyId).emit('lobby_updated', lobby);
-      io.to(lobbyId).emit('game_ended', { winner: null, players: lobby.players, reason: 'pile_empty', matchOver: false });
+      io.to(lobbyId).emit('game_ended', { winner: null, players: lobby.players, reason: 'pile_empty', matchOver, matchWinners });
     }
   });
 
@@ -1315,6 +1341,62 @@ io.on('connection', (socket) => {
     const lobby = lobbies.get(lobbyId);
     if (!lobby || lobby.status !== 'finished' || lobby.gameType !== 'okey' || lobby.matchOver) return;
     initOkeyGame(lobby);
+  });
+
+  // "Gösterme": if a player was dealt a tile identical to the gösterge
+  // (indicator) tile, they may show it - before their own first draw this
+  // hand - to take 1 point off every other player. Per the official rules
+  // this is a bonus, not a win: play just continues afterwards.
+  socket.on('declare_gosterme', ({ lobbyId }, callback) => {
+    const lobby = lobbies.get(lobbyId);
+    if (!lobby || lobby.status !== 'playing' || lobby.gameType !== 'okey') {
+      if (callback) callback({ success: false, error: 'Gerade nicht möglich.' });
+      return;
+    }
+    const gs = lobby.gameState;
+    const player = lobby.players.find(p => p.id === socket.id);
+    if (!player) {
+      if (callback) callback({ success: false, error: 'Du bist gerade nicht in dieser Runde.' });
+      return;
+    }
+    if (gs.drawnThisHand?.[player.id]) {
+      if (callback) callback({ success: false, error: 'Zu spät - du hast in dieser Runde schon gezogen.' });
+      return;
+    }
+    if (gs.gostermeDeclared?.[player.id]) {
+      if (callback) callback({ success: false, error: 'Du hast das schon gezeigt.' });
+      return;
+    }
+    const hand: OkeyTile[] = gs.hands[player.id] || [];
+    const indicator = gs.indicator;
+    const hasMatch = indicator && hand.some(t => t.color === indicator.color && t.value === indicator.value);
+    if (!hasMatch) {
+      if (callback) callback({ success: false, error: 'Du hast keinen zum Gösterge passenden Stein.' });
+      return;
+    }
+
+    if (!gs.gostermeDeclared) gs.gostermeDeclared = {};
+    gs.gostermeDeclared[player.id] = true;
+
+    const scoringOn = lobby.scoringEnabled !== false;
+    if (scoringOn) {
+      lobby.players.forEach(p => {
+        if (p.id !== player.id) p.score -= 1;
+      });
+    }
+    addLog(
+      lobby,
+      scoringOn
+        ? `✨ ${player.name} zeigt einen Gösterme-Stein - jeder andere verliert 1 Punkt!`
+        : `✨ ${player.name} zeigt einen Gösterme-Stein!`
+    );
+
+    // If this drops someone to 0, the match is over - but that's only
+    // acted on (and lobby.matchOver set) once the current hand actually
+    // ends, exactly like an ordinary win; see declare_win / pile_empty.
+    io.to(lobbyId).emit('lobby_updated', lobby);
+    broadcastGameState(lobby); // refreshes gosterme_eligible for everyone
+    if (callback) callback({ success: true });
   });
 
   // TAVLA (BACKGAMMON) ACTIONS

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type DragEvent } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
-import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 
 interface Tile {
@@ -17,7 +17,18 @@ interface OkeyBoardProps {
 const TOTAL_SLOTS = 30; // 2 rows of 15 slots
 
 export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
-  const { socket, lobby, hand, publicGameState, winRejectedMessage, clearWinRejectedMessage } = useGameStore();
+  const {
+    socket,
+    lobby,
+    hand,
+    publicGameState,
+    winRejectedMessage,
+    clearWinRejectedMessage,
+    gostermeEligible,
+    gostermeMessage,
+    clearGostermeMessage,
+    declareGosterme,
+  } = useGameStore();
   const showToast = useUIStore((s) => s.showToast);
   const [rackSlots, setRackSlots] = useState<(Tile | null)[]>(Array(TOTAL_SLOTS).fill(null));
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
@@ -90,6 +101,17 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       clearWinRejectedMessage();
     }
   }, [winRejectedMessage, clearWinRejectedMessage, showToast]);
+
+  useEffect(() => {
+    if (gostermeMessage) {
+      showToast(gostermeMessage);
+      clearGostermeMessage();
+    }
+  }, [gostermeMessage, clearGostermeMessage, showToast]);
+
+  const handleDeclareGosterme = () => {
+    declareGosterme(lobbyId);
+  };
 
   // Swap slots (Works anytime!)
   const swapSlots = (fromIdx: number, toIdx: number) => {
@@ -330,6 +352,17 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
             )}
           </div>
         </div>
+
+        {/* Gösterme bonus - only shown while it's actually claimable */}
+        {gostermeEligible && (
+          <button
+            onClick={handleDeclareGosterme}
+            className="mt-1 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-1.5 animate-pulse"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Gösterme zeigen (-1 Punkt für alle Gegner)</span>
+          </button>
+        )}
 
         {/* Main Action Controls */}
         <div className="grid grid-cols-2 gap-2 mt-1">
