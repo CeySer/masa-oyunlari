@@ -61,23 +61,62 @@ interface OkeyTileProps {
   scale?: number;
   selected?: boolean;
   dimmed?: boolean;
+  /**
+   * Show the tile turned over instead of its printed face - the real-table
+   * habit of flipping the one tile that the indicator turns into the joker,
+   * so it doesn't just sit there looking like any other numbered stone.
+   * Purely a look (the tile still drags, selects and discards normally).
+   */
+  faceDown?: boolean;
   className?: string;
 }
 
 // The tile "stone" face: cream/ivory gradient body with a beveled, slightly
 // glossy look (like real bone/melamine Okey tiles) and an engraved-style
 // colored numeral - the color lives in the numeral, not the tile body.
-export function OkeyTile({ tile, size = 'md', scale, selected, dimmed, className = '' }: OkeyTileProps) {
+export function OkeyTile({ tile, size = 'md', scale, selected, dimmed, faceDown, className = '' }: OkeyTileProps) {
   const isJoker = tile.color === 'fake';
   const fluid = typeof scale === 'number';
 
+  const wrapperClass = `relative flex flex-col items-center justify-center border ${
+    fluid ? '' : SIZE_CLASSES[size]
+  } ${
+    selected
+      ? 'border-red-500 ring-2 ring-red-500/70 -translate-y-1 shadow-xl scale-105'
+      : faceDown
+      ? 'border-amber-900/50 shadow-md'
+      : 'border-stone-300/80 shadow-md'
+  } ${dimmed ? 'opacity-60' : ''} ${className}`;
+
+  if (faceDown) {
+    return (
+      <div
+        className={wrapperClass}
+        title="Echter Okey - umgedreht"
+        style={{
+          ...(fluid ? scaledStyle(scale!) : {}),
+          background: 'linear-gradient(160deg, #8a5a2b 0%, #6b4118 55%, #4a2c0f 100%)',
+          boxShadow: selected
+            ? undefined
+            : 'inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -3px 4px rgba(0,0,0,0.35), 0 2px 3px rgba(0,0,0,0.3)',
+        }}
+      >
+        <div className="absolute top-0.5 left-1 right-1 h-1/3 rounded-t-md bg-white/10 blur-[1px] pointer-events-none" />
+        <span
+          className="relative text-amber-200/60 leading-none"
+          style={{
+            fontSize: fluid ? `calc(var(--tile-w, 42px) * ${scale!} * 0.42)` : undefined,
+          }}
+        >
+          ★
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`relative flex flex-col items-center justify-center border ${fluid ? '' : SIZE_CLASSES[size]} ${
-        selected
-          ? 'border-red-500 ring-2 ring-red-500/70 -translate-y-1 shadow-xl scale-105'
-          : 'border-stone-300/80 shadow-md'
-      } ${dimmed ? 'opacity-60' : ''} ${className}`}
+      className={wrapperClass}
       style={{
         ...(fluid ? scaledStyle(scale!) : {}),
         background: 'linear-gradient(160deg, #fffaf0 0%, #f5ecd7 55%, #e8dcc0 100%)',

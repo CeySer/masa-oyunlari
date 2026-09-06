@@ -469,6 +469,7 @@ function armTurnTimer(lobby: Lobby) {
     if (gs) {
       gs.turnDeadline = null;
       gs.timerForTurn = null;
+      gs.timerForAway = null;
     }
   };
 
@@ -484,14 +485,20 @@ function armTurnTimer(lobby: Lobby) {
   const humans = lobby.players.filter(p => !p.isBot).length;
   if (humans < 2 && !current.away) return stop();
 
-  // Already counting down for exactly this turn: leave it alone.
-  if (gs.timerForTurn === gs.turnIndex && turnTimers.has(lobby.id)) return;
+  // Already counting down for exactly this turn, on the clock that still
+  // applies: leave it alone. But a player can go away or come back without
+  // the turn itself changing - reconnecting mid-turn must not be left
+  // stuck on the short away-clock that was armed before they returned (and
+  // going away mid-turn must not be left on the long normal clock either),
+  // so a change in away-status for this same turn always re-arms below.
+  if (gs.timerForTurn === gs.turnIndex && gs.timerForAway === current.away && turnTimers.has(lobby.id)) return;
 
   clearTurnTimer(lobby.id);
   const durationMs = current.away ? AWAY_TURN_TIME_MS : TURN_TIME_MS;
   gs.turnDurationMs = durationMs;
   gs.turnDeadline = Date.now() + durationMs;
   gs.timerForTurn = gs.turnIndex;
+  gs.timerForAway = current.away === true;
 
   const armedFor = gs.turnIndex;
   turnTimers.set(
@@ -523,6 +530,7 @@ function onTurnTimeout(lobby: Lobby, armedFor: number) {
   // Nothing about the player changes here: no "(Bot)" in the name, no lost
   // seat. They just miss this one turn and can carry on with the next.
   gs.timerForTurn = null;
+  gs.timerForAway = null;
   executeOkeyBotTurn(lobby, player);
 }
 

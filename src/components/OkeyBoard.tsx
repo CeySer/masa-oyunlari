@@ -6,7 +6,7 @@ import { REACTIONS, findReaction } from '../lib/reactions';
 import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Sparkles, Wand2, Bot, WifiOff, MessageCircle } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 import ReactionTile from './ReactionTile';
-import { useBoardScale } from '../lib/useBoardScale';
+import { useBoardScale, RACK_TILE_SCALE } from '../lib/useBoardScale';
 
 interface Tile {
   id: number;
@@ -493,6 +493,16 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   const topRowSlots = rackSlots.slice(0, 15);
   const bottomRowSlots = rackSlots.slice(15, 30);
 
+  // The "gerçek okey" - the one real tile that the indicator turns into the
+  // joker (as opposed to the two "sahte okey" wildcards, which are already
+  // unmistakable with their star face and need no disguise). At a real
+  // table it's common to turn that one tile over in your own rack rather
+  // than leave it lying face-up like any other stone - purely cosmetic
+  // here (nobody else ever sees your rack), but it's the authentic look.
+  const indicator = publicGameState?.indicator;
+  const isRealJoker = (tile: Tile) =>
+    Boolean(indicator) && tile.color !== 'fake' && tile.color === indicator.color && tile.value === ((indicator.value % 13) + 1);
+
   const renderSlotTile = (tile: Tile | null, slotIdx: number) => {
     const isSelected = selectedSlotIndex === slotIdx;
     const isDealing = Boolean(tile) && dealingTileIds.has(Number(tile!.id));
@@ -512,9 +522,9 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         style={isDealing ? { animationDelay: `${(slotIdx % 15) * 25}ms` } : undefined}
       >
         {tile ? (
-          <OkeyTile tile={tile} selected={isSelected} scale={1} />
+          <OkeyTile tile={tile} selected={isSelected} scale={RACK_TILE_SCALE} faceDown={isRealJoker(tile)} />
         ) : (
-          <EmptyOkeyTileSlot index={slotIdx} scale={1} />
+          <EmptyOkeyTileSlot index={slotIdx} scale={RACK_TILE_SCALE} />
         )}
       </div>
     );
@@ -965,11 +975,11 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         {/* Two rows of 15. The tile unit is derived from this rack's own
             width and height budget, so all 30 slots always fit across -
             no horizontal scrolling, on any screen. */}
-        <div className="flex flex-col items-center" style={{ gap: 'var(--tile-gap)' }}>
-          <div className="flex items-center justify-center" style={{ gap: 'var(--tile-gap)' }}>
+        <div className="flex flex-col items-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
+          <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
             {topRowSlots.map((tile, idx) => renderSlotTile(tile, idx))}
           </div>
-          <div className="flex items-center justify-center" style={{ gap: 'var(--tile-gap)' }}>
+          <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
             {bottomRowSlots.map((tile, idx) => renderSlotTile(tile, 15 + idx))}
           </div>
         </div>

@@ -29,6 +29,20 @@ const MAX_TILE_W = 96;
 /** Tile width that reads as "comfortable phone in landscape" - scale 1. */
 const REFERENCE_TILE_W = 42;
 
+/**
+ * How big a rack ("Istaka") tile renders relative to the shared tile unit.
+ * Deliberately smaller than 1: the Istaka only needs to be legible and
+ * draggable, while the actual playing table (opponents, indicator, discard,
+ * actions) is what a player is watching most of the time and reads as "the
+ * game" - it should get the room. Because the table is `flex-1` and the
+ * rack is `flex-shrink-0` (see OkeyBoard's root layout), rendering rack
+ * tiles smaller directly frees up height for the table, without needing any
+ * change to the byWidth/byHeight sizing above: those still budget for a
+ * full-scale rack (a safety margin, not a target), so shrinking the rack's
+ * own render size only ever gives back space, never risks an overflow.
+ */
+export const RACK_TILE_SCALE = 0.78;
+
 export interface BoardScale {
   tileW: number;
   tileH: number;
