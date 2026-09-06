@@ -208,23 +208,27 @@ export default function Game() {
 
       {/* Top Header - one thin strip, so essentially the whole viewport
           belongs to the board. Everything else (leaving the game, sound,
-          design) lives behind the burger menu. */}
-      <header className="flex items-center justify-between gap-2 flex-shrink-0">
-        {isMyTurn ? (
-          <div className="px-3 py-0.5 bg-[var(--color-accent)] text-[var(--color-accent-contrast)] font-black rounded-full text-[11px] shadow animate-pulse whitespace-nowrap">
-            ★ DU BIST AM ZUG ★
-          </div>
-        ) : (
-          <div className="px-2.5 py-0.5 bg-[var(--color-surface-2)] text-[var(--color-text)] font-semibold rounded-full text-[11px] flex items-center gap-1.5 border border-[var(--color-border-strong)] min-w-0">
-            {currentPlayer?.isBot && <Bot className="w-3 h-3 flex-shrink-0 text-[var(--color-accent)]" />}
-            <span className="truncate">Am Zug: {currentPlayer?.name}</span>
-          </div>
-        )}
+          design) lives behind the burger menu. Whoever's turn it is sits
+          truly centered (absolute, not just "first in a flex row") so it
+          stays centered regardless of the burger button's width. */}
+      <header className="relative flex items-center justify-end flex-shrink-0">
+        <div className="absolute left-1/2 -translate-x-1/2 max-w-[70%]">
+          {isMyTurn ? (
+            <div className="px-3 py-0.5 bg-[var(--color-accent)] text-[var(--color-accent-contrast)] font-black rounded-full text-[11px] shadow animate-pulse whitespace-nowrap">
+              ★ DU BIST AM ZUG ★
+            </div>
+          ) : (
+            <div className="px-2.5 py-0.5 bg-[var(--color-surface-2)] text-[var(--color-text)] font-semibold rounded-full text-[11px] flex items-center gap-1.5 border border-[var(--color-border-strong)] min-w-0 justify-center">
+              {currentPlayer?.isBot && <Bot className="w-3 h-3 flex-shrink-0 text-[var(--color-accent)]" />}
+              <span className="truncate">Am Zug: {currentPlayer?.name}</span>
+            </div>
+          )}
+        </div>
 
         <button
           onClick={() => setMenuOpen(true)}
           title="Menü"
-          className="p-1 flex-shrink-0 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-lg border border-[var(--color-border-strong)]"
+          className="relative p-1 flex-shrink-0 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-lg border border-[var(--color-border-strong)]"
         >
           <Menu className="w-4 h-4" />
         </button>

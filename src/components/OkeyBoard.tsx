@@ -3,7 +3,7 @@ import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { useSoundStore } from '../store/soundStore';
 import { REACTIONS, findReaction } from '../lib/reactions';
-import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Sparkles, Wand2, Bot, WifiOff, MessageCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, Bot, WifiOff, MessageCircle } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 import ReactionTile from './ReactionTile';
 import { useBoardScale, RACK_TILE_SCALE } from '../lib/useBoardScale';
@@ -229,36 +229,28 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
 
   const iHaveDrawn = hand.length === 15;
 
-  // Sync hand tiles with rack slots smoothly while keeping custom positions.
-  // A brand-new hand (every tile in it is unfamiliar to the rack) is arranged
-  // automatically via the same grouping logic as the "Auto" button, with a
-  // brief dealing animation - no button press needed at the start of a hand.
+  // Auto-sort is always on: whenever a genuinely new tile appears in the
+  // hand (the opening deal, or a draw), the whole rack is re-grouped into
+  // runs/sets automatically - no button, no manual step. A plain broadcast
+  // that leaves the hand's actual tiles unchanged (very common - it fires on
+  // every bot move elsewhere at the table) must NOT re-trigger this, or the
+  // rack would jump around on its own for no reason, so this only acts when
+  // the tile ids themselves differ from what the rack currently shows.
   useEffect(() => {
     const handMap = new Map(hand.map((t) => [Number(t.id), t]));
     const currentIds = new Set(rackSlots.filter((t): t is Tile => t !== null).map((t) => Number(t.id)));
     const missingTiles = hand.filter((t) => !currentIds.has(Number(t.id)));
-    const isFreshDeal = hand.length >= 14 && missingTiles.length === hand.length;
 
-    if (isFreshDeal) {
+    if (missingTiles.length > 0) {
       setRackSlots(computeGroupedSlots(hand as Tile[], publicGameState?.indicator));
-      setDealingTileIds(new Set(hand.map((t) => Number(t.id))));
+      setDealingTileIds(new Set(missingTiles.map((t) => Number(t.id))));
       const timer = setTimeout(() => setDealingTileIds(new Set()), DEAL_ANIM_MS);
       return () => clearTimeout(timer);
     }
 
-    setRackSlots((prevSlots) => {
-      const nextSlots = prevSlots.map(t => (t && handMap.has(Number(t.id)) ? handMap.get(Number(t.id))! : null));
-      const presentIds = new Set(nextSlots.filter((t): t is Tile => t !== null).map(t => Number(t.id)));
-      const stillMissing = hand.filter(t => !presentIds.has(Number(t.id)));
-
-      let missingIdx = 0;
-      for (let i = 0; i < nextSlots.length && missingIdx < stillMissing.length; i++) {
-        if (nextSlots[i] === null) {
-          nextSlots[i] = stillMissing[missingIdx++];
-        }
-      }
-      return nextSlots;
-    });
+    // Nothing new - just drop whatever left the hand (a discard) and keep
+    // the rest exactly where they were.
+    setRackSlots((prevSlots) => prevSlots.map(t => (t && handMap.has(Number(t.id)) ? handMap.get(Number(t.id))! : null)));
 
     if (hand.length === 14 && selectedSlotIndex !== null) {
       if (!hand.some(t => Number(t.id) === Number(rackSlots[selectedSlotIndex]?.id))) {
@@ -419,47 +411,6 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     touchStartSlotRef.current = null;
   };
 
-  // "Logical" auto-sort button - same grouping logic used automatically at
-  // the start of a hand (see the [hand] effect above), callable any time the
-  // player wants to re-cluster the rack by hand.
-  const sortByGroups = () => {
-    const tilesOnly = rackSlots.filter((t): t is Tile => t !== null);
-    setRackSlots(computeGroupedSlots(tilesOnly, publicGameState?.indicator));
-    setSelectedSlotIndex(null);
-  };
-
-  // Auto-sort helpers
-  const sortByColor = () => {
-    const tilesOnly = rackSlots.filter((t): t is Tile => t !== null);
-    tilesOnly.sort((a, b) => {
-      if (a.color !== b.color) return a.color.localeCompare(b.color);
-      return a.value - b.value;
-    });
-
-    const newSlots = Array(TOTAL_SLOTS).fill(null);
-    tilesOnly.forEach((t, i) => {
-      if (i < TOTAL_SLOTS) newSlots[i] = t;
-    });
-    setRackSlots(newSlots);
-    setSelectedSlotIndex(null);
-  };
-
-  const sortByValue = () => {
-    const tilesOnly = rackSlots.filter((t): t is Tile => t !== null);
-    tilesOnly.sort((a, b) => {
-      if (a.value !== b.value) return a.value - b.value;
-      return a.color.localeCompare(b.color);
-    });
-
-    const newSlots = Array(TOTAL_SLOTS).fill(null);
-    tilesOnly.forEach((t, i) => {
-      if (i < TOTAL_SLOTS) newSlots[i] = t;
-    });
-    setRackSlots(newSlots);
-    setSelectedSlotIndex(null);
-  };
-
-
   // --- Table layout ---------------------------------------------------
   // Everyone at the table, starting with the player to my left (i.e. the
   // one who plays after me), so the row reads in turn order. Each opponent
@@ -490,8 +441,17 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   const myTopDiscard = lastDiscardOf(socket?.id || '');
   const canTakeDiscard = isMyTurn && !iHaveDrawn && Boolean(lastDiscardOf(prevPlayer?.id));
 
-  const topRowSlots = rackSlots.slice(0, 15);
-  const bottomRowSlots = rackSlots.slice(15, 30);
+  // Auto-sort always leaves the rack packed from the front, so trailing
+  // empty slots past the last real tile are genuinely unused - trim them
+  // instead of always reserving all 30 (a gap slot *between* two groups,
+  // before the last tile, is still meaningful and stays).
+  let lastFilledIdx = -1;
+  for (let i = 0; i < rackSlots.length; i++) {
+    if (rackSlots[i]) lastFilledIdx = i;
+  }
+  const visibleSlotCount = lastFilledIdx + 1;
+  const topRowSlots = rackSlots.slice(0, Math.min(15, visibleSlotCount));
+  const bottomRowSlots = visibleSlotCount > 15 ? rackSlots.slice(15, visibleSlotCount) : [];
 
   // The "gerçek okey" - the one real tile that the indicator turns into the
   // joker (as opposed to the two "sahte okey" wildcards, which are already
@@ -668,33 +628,54 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     );
   };
 
-  // Middle of the table: face-down draw pile, the indicator tile centered
-  // plainly, and my own discard slot right next to it - like a real table,
-  // no explanatory captions needed.
+  // Middle of the table: a real-looking stack of face-down stones to draw
+  // from, the indicator tile centered plainly, and my own discard slot
+  // right next to it - like a real table, no explanatory captions needed.
+  // Every tile here shares the rack's own tile unit (RACK_TILE_SCALE) so
+  // nothing on the table reads as bigger than what's in hand.
+  const pileRadius = `calc(var(--tile-w) * ${RACK_TILE_SCALE} * 0.18)`;
+  const pileBack = 'linear-gradient(160deg, #8a5a2b 0%, #6b4118 55%, #4a2c0f 100%)';
+
   const renderCentre = () => (
     <div className="flex items-center justify-center" style={{ gap: sp(12, 6) }}>
       <button
         onClick={handleDrawPile}
         disabled={!isMyTurn || iHaveDrawn}
         title="Vom Stapel ziehen"
-        className="relative flex items-center justify-center rounded-md transition disabled:opacity-50 active:scale-[0.97]"
+        className="relative flex items-center justify-center transition disabled:opacity-50 active:scale-[0.97]"
         style={{
-          width: 'calc(var(--tile-w) * 0.9)',
-          height: 'calc(var(--tile-h) * 0.9)',
-          background: 'linear-gradient(160deg, #b45309 0%, #92400e 60%, #78350f 100%)',
-          border: `2px solid ${isMyTurn && !iHaveDrawn ? 'var(--color-accent)' : 'var(--table-edge)'}`,
-          boxShadow: '0 3px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15)',
+          width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`,
+          height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})`,
         }}
       >
-        <span className="font-black text-amber-100 leading-none" style={{ fontSize: fs(13, 9) }}>
-          {publicGameState.pileCount}
+        {/* Two tiles peeking out behind - a real stack, not a flat counter */}
+        <span
+          className="absolute inset-0"
+          style={{ transform: 'translate(3px, 3px)', background: pileBack, borderRadius: pileRadius, border: '1px solid rgba(0,0,0,0.35)' }}
+        />
+        <span
+          className="absolute inset-0"
+          style={{ transform: 'translate(1.5px, 1.5px)', background: pileBack, borderRadius: pileRadius, border: '1px solid rgba(0,0,0,0.35)' }}
+        />
+        <span
+          className="relative flex items-center justify-center w-full h-full"
+          style={{
+            background: pileBack,
+            borderRadius: pileRadius,
+            border: `2px solid ${isMyTurn && !iHaveDrawn ? 'var(--color-accent)' : 'rgba(0,0,0,0.4)'}`,
+            boxShadow: '0 3px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)',
+          }}
+        >
+          <span className="font-black text-amber-100 leading-none" style={{ fontSize: fs(13, 9) }}>
+            {publicGameState.pileCount}
+          </span>
         </span>
       </button>
 
       {publicGameState.indicator ? (
-        <OkeyTile tile={publicGameState.indicator} scale={1} className="ring-2 ring-[var(--color-accent)]/70" />
+        <OkeyTile tile={publicGameState.indicator} scale={RACK_TILE_SCALE} className="ring-2 ring-[var(--color-accent)]/70" />
       ) : (
-        <span style={{ width: 'calc(var(--tile-w) * 0.9)', height: 'calc(var(--tile-h) * 0.9)' }} />
+        <span style={{ width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`, height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})` }} />
       )}
 
       <div
@@ -708,13 +689,13 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           isMyTurn && iHaveDrawn ? 'cursor-pointer animate-pulse' : ''
         }`}
         style={{
-          width: 'calc(var(--tile-w) * 0.9)',
-          height: 'calc(var(--tile-h) * 0.9)',
+          width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`,
+          height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})`,
           background: 'var(--table-inset)',
           border: `2px dashed ${isMyTurn && iHaveDrawn ? '#ef4444' : 'var(--table-edge)'}`,
         }}
       >
-        {myTopDiscard && <OkeyTile tile={myTopDiscard} scale={0.8} />}
+        {myTopDiscard && <OkeyTile tile={myTopDiscard} scale={RACK_TILE_SCALE * 0.9} />}
       </div>
     </div>
   );
@@ -743,26 +724,6 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       )}
 
       <div className="flex items-stretch" style={{ gap: sp(6, 4) }}>
-        <button
-          onClick={() => handleDiscard()}
-          disabled={!isMyTurn || !iHaveDrawn || !selectedTile}
-          className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold rounded-xl shadow transition flex items-center justify-center whitespace-nowrap"
-          style={btnStyle}
-        >
-          <ArrowDown style={iconSize} />
-          <span>{selectedTile ? `${selectedTile.value} Abwerfen` : 'Abwerfen'}</span>
-        </button>
-
-        <button
-          onClick={handleDeclareWin}
-          disabled={!isMyTurn || !iHaveDrawn}
-          className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold rounded-xl shadow transition flex items-center justify-center whitespace-nowrap"
-          style={btnStyle}
-        >
-          <Trophy className="text-amber-300" style={iconSize} />
-          <span>Okey</span>
-        </button>
-
         {/* Throw a reaction stone - a fixed set of calls, never free text */}
         <div className="relative">
           <button
@@ -864,12 +825,6 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
             </span>
           )}
           <div className="flex items-center min-w-0" style={{ gap: sp(6, 4) }}>
-            <span
-              className="font-black uppercase tracking-wider leading-none"
-              style={{ color: 'var(--color-accent)', fontSize: fs(13, 9) }}
-            >
-              Istaka ({hand.length})
-            </span>
             {iHaveDrawn && isMyTurn && (
               <span
                 className="bg-red-500 text-white font-bold rounded-full animate-pulse leading-none whitespace-nowrap"
@@ -926,62 +881,22 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
                 </button>
               </div>
             )}
-
-            <button
-              onClick={sortByGroups}
-              className="rounded-lg font-bold transition flex items-center shadow-sm whitespace-nowrap"
-              style={{
-                ...btnStyle,
-                padding: `${sp(4, 3)} ${sp(8, 5)}`,
-                background: 'var(--color-accent)',
-                color: 'var(--color-accent-contrast)',
-              }}
-              title="Ordnet Reihen & Sätze automatisch zusammen"
-            >
-              <Wand2 style={iconSize} />
-              <span>Auto</span>
-            </button>
-            <button
-              onClick={sortByColor}
-              className="rounded-lg font-bold transition flex items-center shadow-sm whitespace-nowrap"
-              style={{
-                ...btnStyle,
-                padding: `${sp(4, 3)} ${sp(8, 5)}`,
-                background: 'var(--table-inset)',
-                color: 'var(--color-text)',
-                border: '1px solid var(--rack-wood-edge)',
-              }}
-            >
-              <Palette style={iconSize} />
-              <span>Farbe</span>
-            </button>
-            <button
-              onClick={sortByValue}
-              className="rounded-lg font-bold transition flex items-center shadow-sm whitespace-nowrap"
-              style={{
-                ...btnStyle,
-                padding: `${sp(4, 3)} ${sp(8, 5)}`,
-                background: 'var(--table-inset)',
-                color: 'var(--color-text)',
-                border: '1px solid var(--rack-wood-edge)',
-              }}
-            >
-              <Hash style={iconSize} />
-              <span>Zahl</span>
-            </button>
           </div>
         </div>
 
-        {/* Two rows of 15. The tile unit is derived from this rack's own
-            width and height budget, so all 30 slots always fit across -
-            no horizontal scrolling, on any screen. */}
+        {/* Two rows, each trimmed to just past the last actual tile rather
+            than always reserving 15 slots - auto-sort keeps the rack
+            left-packed, so anything beyond that point is genuinely unused
+            space, not a placeholder anyone needs. */}
         <div className="flex flex-col items-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
           <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
             {topRowSlots.map((tile, idx) => renderSlotTile(tile, idx))}
           </div>
-          <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
-            {bottomRowSlots.map((tile, idx) => renderSlotTile(tile, 15 + idx))}
-          </div>
+          {bottomRowSlots.length > 0 && (
+            <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
+              {bottomRowSlots.map((tile, idx) => renderSlotTile(tile, 15 + idx))}
+            </div>
+          )}
         </div>
       </div>
     </div>

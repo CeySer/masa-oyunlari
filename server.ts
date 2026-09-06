@@ -8,7 +8,16 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 // The Okey rule engine (what counts as a winning hand) lives in its own
 // module so it can be unit-tested on its own: npm run test:rules.
-import { isJokerTile, findWinningDiscard, winPoints, paysForWin, type OkeyTile } from './okeyRules';
+import {
+  isJokerTile,
+  findWinningDiscard,
+  isValidRunSetHand,
+  isValidPairsHand,
+  winPoints,
+  paysForWin,
+  type OkeyTile,
+  type WinType,
+} from './okeyRules';
 
 const app = express();
 const httpServer = createServer(app);
@@ -199,6 +208,105 @@ function chargeLosers(lobby: Lobby, winnerId: string, points: number) {
   lobby.players.forEach((p, seat) => {
     if (paysForWin(winnerSeat, seat, lobby.teamMode === true)) p.score -= points;
   });
+}
+
+/**
+ * Ends the current hand as a win: scores it, checks for a match end, logs
+ * it, updates the leaderboard and tells everyone. Shared by the explicit
+ * 'declare_win' event and by discard_tile noticing on its own that the tile
+ * just thrown away happens to complete the hand ("Okey über Stein werfen" -
+ * no separate button needed, throwing the winning tile away IS the win).
+ */
+function finishHandWithWin(
+  lobby: Lobby,
+  lobbyId: string,
+  winner: Player,
+  winningDiscard: OkeyTile,
+  winType: WinType
+) {
+  const gs = lobby.gameState;
+
+  // Traditional Okey scoring: the winner's own score never moves - only
+  // the OTHER players lose points. An ordinary sets/runs win costs each
+  // loser 2 points; winning with seven pairs, or by discarding the joker
+  // itself (a much harder way to go out), costs each loser 4. A lobby
+  // created with scoring switched off skips all of this - every hand is
+  // its own casual round, nobody's score changes, and the match never
+  // ends on its own.
+  // In Eşli (partnership) Okey the winner's PARTNER is spared too - only
+  // the opposing pair pays. Since both members of that pair lose the same
+  // amount, their two scores stay identical hand after hand, which is
+  // exactly what "the team has X points left" means; nothing downstream
+  // (match end, final standings) needs to know about teams at all.
+  const jokerDiscardWin = isJokerTile(winningDiscard, gs.indicator);
+  const scoringOn = lobby.scoringEnabled !== false;
+  const pointsLost = scoringOn ? winPoints(winType, jokerDiscardWin) : 0;
+  if (scoringOn) chargeLosers(lobby, winner.id, pointsLost);
+
+  // The match (this whole run of hands, not just this one) ends once
+  // somebody's score drops to zero or below - then the two players left
+  // with the most points are the overall winners. Never applies when
+  // scoring is off.
+  const matchOver = scoringOn && lobby.players.some(p => p.score <= 0);
+  lobby.matchOver = matchOver;
+  const matchWinners = matchOver
+    ? [...lobby.players].sort((a, b) => b.score - a.score).slice(0, 2)
+    : null;
+
+  lobby.status = 'finished';
+  clearTurnTimer(lobbyId); // Runde vorbei - keine Zuguhr mehr
+  const winLabel = winType === 'pairs' ? 'mit 7 Paaren' : jokerDiscardWin ? 'durch Abwerfen des Okey-Steins' : '';
+  addLog(
+    lobby,
+    scoringOn
+      ? lobby.teamMode
+        ? `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - das gegnerische Paar verliert ${pointsLost} Punkte!`
+        : `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - jeder andere verliert ${pointsLost} Punkte!`
+      : `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''}!`
+  );
+
+  // Update the persistent leaderboard - only for players with a real
+  // profile. Bots and anonymous solo-test players never appear on the
+  // global ranking.
+  if (winner.profileId) {
+    bumpLeaderboardEntry(winner.profileId, winner.name, { won: true });
+  }
+  lobby.players.forEach(p => {
+    if (p.profileId && p.profileId !== winner.profileId) {
+      bumpLeaderboardEntry(p.profileId, p.name, { won: false });
+    }
+  });
+
+  // The client's "Punktestand" screen reads scores off its locally-held
+  // `lobby.players` (kept in sync only via 'lobby_updated'), not off the
+  // `players` sent alongside 'game_ended' - without this, winner.score
+  // was mutated on the server but the client never learned about it and
+  // showed everyone stuck at 0.
+  io.to(lobbyId).emit('lobby_updated', lobby);
+  io.to(lobbyId).emit('game_ended', { winner, players: lobby.players, winType, pointsLost, matchOver, matchWinners });
+  io.emit('leaderboard_updated', Object.values(globalLeaderboard));
+}
+
+/**
+ * Nobody can draw anymore - the round ends in a draw (no winner). Shared by
+ * a human's own failed draw attempt and by discard_tile noticing right away
+ * that its discard just emptied the pile, so the game doesn't have to wait
+ * for the next player to try (and fail) a draw of their own.
+ */
+function endRoundPileEmpty(lobby: Lobby, lobbyId: string) {
+  addLog(lobby, `⚠️ Der Stapel ist leer. Runde endet unentschieden.`);
+  lobby.status = 'finished';
+  clearTurnTimer(lobbyId);
+  // A draw itself never costs anyone points - but a Gösterme bonus claimed
+  // earlier in this same hand can already have dropped someone to 0, so the
+  // match can still be over even though nobody won.
+  const matchOver = lobby.scoringEnabled !== false && lobby.players.some(p => p.score <= 0);
+  lobby.matchOver = matchOver;
+  const matchWinners = matchOver
+    ? [...lobby.players].sort((a, b) => b.score - a.score).slice(0, 2)
+    : null;
+  io.to(lobbyId).emit('lobby_updated', lobby);
+  io.to(lobbyId).emit('game_ended', { winner: null, players: lobby.players, reason: 'pile_empty', matchOver, matchWinners });
 }
 
 // Every socket signed into account `uid` joins this room (see
@@ -1250,19 +1358,7 @@ io.on('connection', (socket) => {
       broadcastGameState(lobby);
     } else if (source === 'pile' && gs.pile.length === 0) {
       // No tiles left anywhere to draw - the round ends in a draw (no winner).
-      addLog(lobby, `⚠️ Der Stapel ist leer. Runde endet unentschieden.`);
-      lobby.status = 'finished';
-      clearTurnTimer(lobbyId);
-      // A draw itself never costs anyone points - but a Gösterme bonus
-      // claimed earlier in this same hand can already have dropped someone
-      // to 0, so the match can still be over even though nobody won.
-      const matchOver = lobby.scoringEnabled !== false && lobby.players.some(p => p.score <= 0);
-      lobby.matchOver = matchOver;
-      const matchWinners = matchOver
-        ? [...lobby.players].sort((a, b) => b.score - a.score).slice(0, 2)
-        : null;
-      io.to(lobbyId).emit('lobby_updated', lobby);
-      io.to(lobbyId).emit('game_ended', { winner: null, players: lobby.players, reason: 'pile_empty', matchOver, matchWinners });
+      endRoundPileEmpty(lobby, lobbyId);
     }
   });
 
@@ -1278,17 +1374,43 @@ io.on('connection', (socket) => {
     if (!hand || hand.length !== 15) return;
 
     const tileIdx = hand.findIndex(t => Number(t.id) === Number(tileId));
-    if (tileIdx !== -1) {
-      const tile = hand.splice(tileIdx, 1)[0];
-      gs.discardPiles[currentPlayer.id].push(tile);
-      addLog(lobby, `📤 ${currentPlayer.name} hat ${tile.color === 'fake' ? 'Sahte Okey' : tile.color.toUpperCase() + ' ' + tile.value} abgeworfen.`);
+    if (tileIdx === -1) return;
 
-      // Next turn
-      gs.turnIndex = (gs.turnIndex + 1) % lobby.players.length;
-      broadcastGameState(lobby);
+    // "Okey über Stein werfen": no separate win button - if throwing away
+    // exactly this tile leaves the other 14 forming a valid hand, that IS
+    // declaring the win, the same as the old explicit declare_win event.
+    // Seven pairs is checked first only because it (like the joker-discard
+    // bonus below) is worth more when a hand happens to satisfy both.
+    const rest14 = [...hand.slice(0, tileIdx), ...hand.slice(tileIdx + 1)];
+    const winType: WinType | null = isValidPairsHand(rest14, gs.indicator)
+      ? 'pairs'
+      : isValidRunSetHand(rest14, gs.indicator)
+      ? 'runset'
+      : null;
 
-      checkAndTriggerBotTurn(lobby);
+    const tile = hand.splice(tileIdx, 1)[0];
+
+    if (winType) {
+      finishHandWithWin(lobby, lobbyId, currentPlayer, tile, winType);
+      return;
     }
+
+    gs.discardPiles[currentPlayer.id].push(tile);
+    addLog(lobby, `📤 ${currentPlayer.name} hat ${tile.color === 'fake' ? 'Sahte Okey' : tile.color.toUpperCase() + ' ' + tile.value} abgeworfen.`);
+
+    // Next turn
+    gs.turnIndex = (gs.turnIndex + 1) % lobby.players.length;
+
+    // Nobody can draw anymore - end the round right here (a draw, no
+    // winner) instead of waiting for the next player to try, and fail, a
+    // draw of their own.
+    if (gs.pile.length === 0) {
+      endRoundPileEmpty(lobby, lobbyId);
+      return;
+    }
+
+    broadcastGameState(lobby);
+    checkAndTriggerBotTurn(lobby);
   });
 
   socket.on('declare_win', ({ lobbyId }) => {
@@ -1315,65 +1437,7 @@ io.on('connection', (socket) => {
     const idx = hand.findIndex(t => t.id === winningDiscard.id);
     if (idx !== -1) hand.splice(idx, 1);
 
-    // Traditional Okey scoring: the winner's own score never moves - only
-    // the OTHER players lose points. An ordinary sets/runs win costs each
-    // loser 2 points; winning with seven pairs, or by discarding the joker
-    // itself (a much harder way to go out), costs each loser 4. A lobby
-    // created with scoring switched off skips all of this - every hand is
-    // its own casual round, nobody's score changes, and the match never
-    // ends on its own.
-    // In Eşli (partnership) Okey the winner's PARTNER is spared too - only
-    // the opposing pair pays. Since both members of that pair lose the same
-    // amount, their two scores stay identical hand after hand, which is
-    // exactly what "the team has X points left" means; nothing downstream
-    // (match end, final standings) needs to know about teams at all.
-    const jokerDiscardWin = isJokerTile(winningDiscard, gs.indicator);
-    const scoringOn = lobby.scoringEnabled !== false;
-    const pointsLost = scoringOn ? winPoints(winType, jokerDiscardWin) : 0;
-    if (scoringOn) chargeLosers(lobby, winner.id, pointsLost);
-
-    // The match (this whole run of hands, not just this one) ends once
-    // somebody's score drops to zero or below - then the two players left
-    // with the most points are the overall winners. Never applies when
-    // scoring is off.
-    const matchOver = scoringOn && lobby.players.some(p => p.score <= 0);
-    lobby.matchOver = matchOver;
-    const matchWinners = matchOver
-      ? [...lobby.players].sort((a, b) => b.score - a.score).slice(0, 2)
-      : null;
-
-    lobby.status = 'finished';
-    clearTurnTimer(lobbyId); // Runde vorbei - keine Zuguhr mehr
-    const winLabel = winType === 'pairs' ? 'mit 7 Paaren' : jokerDiscardWin ? 'durch Abwerfen des Okey-Steins' : '';
-    addLog(
-      lobby,
-      scoringOn
-        ? lobby.teamMode
-          ? `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - das gegnerische Paar verliert ${pointsLost} Punkte!`
-          : `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - jeder andere verliert ${pointsLost} Punkte!`
-        : `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''}!`
-    );
-
-    // Update the persistent leaderboard - only for players with a real
-    // profile. Bots and anonymous solo-test players never appear on the
-    // global ranking.
-    if (winner.profileId) {
-      bumpLeaderboardEntry(winner.profileId, winner.name, { won: true });
-    }
-    lobby.players.forEach(p => {
-      if (p.profileId && p.profileId !== winner.profileId) {
-        bumpLeaderboardEntry(p.profileId, p.name, { won: false });
-      }
-    });
-
-    // The client's "Punktestand" screen reads scores off its locally-held
-    // `lobby.players` (kept in sync only via 'lobby_updated'), not off the
-    // `players` sent alongside 'game_ended' - without this, winner.score
-    // was mutated on the server but the client never learned about it and
-    // showed everyone stuck at 0.
-    io.to(lobbyId).emit('lobby_updated', lobby);
-    io.to(lobbyId).emit('game_ended', { winner, players: lobby.players, winType, pointsLost, matchOver, matchWinners });
-    io.emit('leaderboard_updated', Object.values(globalLeaderboard));
+    finishHandWithWin(lobby, lobbyId, winner, winningDiscard, winType);
   });
 
   // Throwing a reaction stone onto the table. Only ids from the fixed list
