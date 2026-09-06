@@ -114,31 +114,61 @@ export default function Game() {
         )}
         {isOkey && scoringEnabled && gameResult?.winner && !gameResult?.reason && (
           <p className="text-[var(--color-text-muted)] text-sm mb-6">
-            Gewonnen{winTypeLabel} - jeder andere Spieler verliert {gameResult.pointsLost} Punkte.
+            Gewonnen{winTypeLabel} -{' '}
+            {lobby.teamMode
+              ? `das gegnerische Paar verliert ${gameResult.pointsLost} Punkte.`
+              : `jeder andere Spieler verliert ${gameResult.pointsLost} Punkte.`}
           </p>
         )}
         {matchOver && gameResult?.matchWinners && (
           <p className="text-sm mb-2 font-bold" style={{ color: 'var(--color-accent)' }}>
-            Match beendet! Sieger: {gameResult.matchWinners.map((p) => p.name).join(' & ')}
+            Match beendet! {lobby.teamMode ? 'Siegerpaar' : 'Sieger'}: {gameResult.matchWinners.map((p) => p.name).join(' & ')}
           </p>
         )}
         {scoringEnabled && (
           <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 w-full max-w-sm mt-4 shadow-2xl">
             <h2 className="text-sm font-bold text-[var(--color-text-muted)] mb-4 uppercase tracking-wide">Punktestand</h2>
-            <ul className="space-y-2">
-              {[...lobby.players]
-                .sort((a: any, b: any) => b.score - a.score)
-                .map((p: any) => (
-                  <li key={p.id} className="flex justify-between items-center text-sm">
-                    <span className="flex items-center gap-1.5">
-                      {p.isBot && <Bot className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />}
-                      {p.name}
-                      {p.score <= 0 && <span className="text-[10px] text-red-400 font-bold">(raus)</span>}
-                    </span>
-                    <span className="font-black text-emerald-400">{p.score} Pkt</span>
-                  </li>
-                ))}
-            </ul>
+
+            {lobby.teamMode ? (
+              // Eşli: both members of a pair always hold the same score (see
+              // server.ts declare_win), so one seat per team is the team's
+              // score - listing four separate numbers would just repeat it.
+              <ul className="space-y-3">
+                {[0, 1].map((team) => {
+                  const members = lobby.players.filter((_: any, i: number) => i % 2 === team);
+                  const score = members[0]?.score ?? 0;
+                  return (
+                    <li key={team} className="flex justify-between items-center text-sm gap-3">
+                      <span className="min-w-0">
+                        <span className="block font-bold">Team {team + 1}</span>
+                        <span className="block text-xs text-[var(--color-text-muted)] truncate">
+                          {members.map((m: any) => m.name).join(' & ')}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="font-black text-emerald-400">{score} Pkt</span>
+                        {score <= 0 && <span className="text-[10px] text-red-400 font-bold">(raus)</span>}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <ul className="space-y-2">
+                {[...lobby.players]
+                  .sort((a: any, b: any) => b.score - a.score)
+                  .map((p: any) => (
+                    <li key={p.id} className="flex justify-between items-center text-sm">
+                      <span className="flex items-center gap-1.5">
+                        {p.isBot && <Bot className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />}
+                        {p.name}
+                        {p.score <= 0 && <span className="text-[10px] text-red-400 font-bold">(raus)</span>}
+                      </span>
+                      <span className="font-black text-emerald-400">{p.score} Pkt</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
           </div>
         )}
         <div className="flex gap-3 mt-6 flex-wrap justify-center">

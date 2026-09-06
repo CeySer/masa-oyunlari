@@ -134,7 +134,7 @@ export default function Lobby() {
         {/* QR Code & Join Link Card */}
         <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center text-center shadow-xl">
           <span className="text-xs font-bold uppercase tracking-widest text-red-400 mb-2">
-            {lobby?.gameType === 'tavla' ? 'Tavla (Backgammon)' : 'Okey (Steinspiel)'}
+            {lobby?.gameType === 'tavla' ? 'Tavla (Backgammon)' : lobby?.teamMode ? 'Eşli Okey (2 gegen 2)' : 'Okey (Steinspiel)'}
           </span>
           <h2 className="text-xl font-bold mb-6">Scanner zum Beitreten</h2>
 
@@ -198,6 +198,20 @@ export default function Lobby() {
                         {p.id === lobby.host && (
                           <span className="text-[10px] font-bold bg-red-950 text-red-400 border border-red-800 px-2 py-0.5 rounded-full">
                             HOST
+                          </span>
+                        )}
+                        {/* Eşli: partners are the players sitting opposite,
+                            i.e. simply the even seats against the odd ones. */}
+                        {lobby.teamMode && (
+                          <span
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                            style={
+                              idx % 2 === 0
+                                ? { background: 'color-mix(in srgb, var(--color-accent) 22%, transparent)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)' }
+                                : { background: 'rgba(45,212,191,0.14)', color: '#5eead4', border: '1px solid rgba(94,234,212,0.6)' }
+                            }
+                          >
+                            Team {idx % 2 === 0 ? '1' : '2'}
                           </span>
                         )}
                       </div>

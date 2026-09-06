@@ -12,6 +12,9 @@ import {
   isValidRunSetHand,
   isValidPairsHand,
   findWinningDiscard,
+  teamOfSeat,
+  arePartners,
+  paysForWin,
   type OkeyTile,
 } from './okeyRules';
 
@@ -343,6 +346,41 @@ const screenshotHand = [
 const screenshotWin = findWinningDiscard(screenshotHand, screenshotIndicator);
 check('Screenshot-Hand mit Rot-8 und Rot-11 gewinnt', screenshotWin !== null, true);
 check('...und der abzuwerfende Stein ist die Rot-2', screenshotWin?.tile.value, 2);
+
+// ---------------------------------------------------------------------------
+// Eşli Okey: gegenüber sitzt der Partner, gezahlt wird nur vom Gegnerpaar
+// ---------------------------------------------------------------------------
+check('Platz 1 und 3 sind ein Team', teamOfSeat(0) === teamOfSeat(2), true);
+check('Platz 2 und 4 sind ein Team', teamOfSeat(1) === teamOfSeat(3), true);
+check('Nachbarplätze sind nie im selben Team', teamOfSeat(0) === teamOfSeat(1), false);
+
+check('Gegenüber ist der Partner', arePartners(0, 2, true), true);
+check('Der Nachbar ist kein Partner', arePartners(0, 1, true), false);
+check('Ohne Eşli gibt es keine Partner', arePartners(0, 2, false), false);
+
+// Einzelspiel: alle außer dem Sieger zahlen
+check('Einzeln: Sieger zahlt nicht', paysForWin(0, 0, false), false);
+check('Einzeln: Platz 2 zahlt', paysForWin(0, 1, false), true);
+check('Einzeln: Platz 3 zahlt', paysForWin(0, 2, false), true);
+check('Einzeln: Platz 4 zahlt', paysForWin(0, 3, false), true);
+
+// Eşli: Sieger UND sein Partner gegenüber bleiben verschont
+check('Eşli: Sieger zahlt nicht', paysForWin(0, 0, true), false);
+check('Eşli: der Partner gegenüber zahlt NICHT', paysForWin(0, 2, true), false);
+check('Eşli: linker Gegner zahlt', paysForWin(0, 1, true), true);
+check('Eşli: rechter Gegner zahlt', paysForWin(0, 3, true), true);
+
+// Aus einem ungeraden Platz heraus muss dasselbe gelten
+check('Eşli von Platz 2 aus: Partner (Platz 4) zahlt nicht', paysForWin(1, 3, true), false);
+check('Eşli von Platz 2 aus: Platz 1 zahlt', paysForWin(1, 0, true), true);
+check('Eşli von Platz 2 aus: Platz 3 zahlt', paysForWin(1, 2, true), true);
+
+// Genau zwei Zahler bedeutet: beide Teammitglieder verlieren gleich viel und
+// bleiben damit dauerhaft auf demselben Punktestand - das ist der Teamstand.
+const zahlerEsli = [0, 1, 2, 3].filter(seat => paysForWin(0, seat, true)).length;
+const zahlerEinzeln = [0, 1, 2, 3].filter(seat => paysForWin(0, seat, false)).length;
+check('Eşli: genau zwei Spieler zahlen (das Gegnerpaar)', zahlerEsli, 2);
+check('Einzeln: genau drei Spieler zahlen', zahlerEinzeln, 3);
 
 // ---------------------------------------------------------------------------
 console.log(`\n  ${passed} Tests bestanden, ${failures.length} fehlgeschlagen\n`);

@@ -472,6 +472,10 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       ? lobby.players
       : Array.from({ length: seatCount - 1 }, (_, i) => lobby.players[(myIndex + 1 + i) % seatCount]);
   const seats = seatsOf(opponents);
+  // Eşli Okey: partners sit opposite, so at a full table my partner is
+  // always the seat across from me - the one seatsOf puts at the top.
+  const partnerId: string | null =
+    lobby.teamMode && opponents.length === 3 ? seats.top?.id ?? null : null;
 
   // Okey only lets you pick up the tile the player before you just threw.
   const prevPlayerIndex = (publicGameState.turnIndex - 1 + seatCount) % seatCount;
@@ -528,6 +532,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     const discard = lastDiscardOf(p.id);
     const takeable = canTakeDiscard && p.id === prevPlayer?.id;
     const count = handCountOf(p.id);
+    const isPartner = p.id === partnerId;
     // The discarded tile always sits on the side facing the middle of the
     // table, the way it would lie in front of that player in real life.
     const direction = seat === 'right' ? 'flex-row-reverse' : 'flex-row';
@@ -553,6 +558,8 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
               ? 'var(--color-accent)'
               : isTheirTurn
               ? 'color-mix(in srgb, var(--color-accent) 55%, transparent)'
+              : isPartner
+              ? 'rgba(94,234,212,0.75)'
               : 'var(--table-edge)'
           }`,
           boxShadow: takeable ? '0 0 0 2px color-mix(in srgb, var(--color-accent) 40%, transparent)' : undefined,
@@ -627,10 +634,22 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
             className="leading-none"
             style={{
               fontSize: fs(10, 8),
-              color: takeable ? 'var(--color-accent)' : p.away ? '#f87171' : 'var(--color-text-muted)',
+              color: takeable
+                ? 'var(--color-accent)'
+                : p.away
+                ? '#f87171'
+                : isPartner
+                ? '#5eead4'
+                : 'var(--color-text-muted)',
             }}
           >
-            {p.away ? 'offline' : typeof count === 'number' ? `${count} Steine` : ''}
+            {p.away
+              ? 'offline'
+              : isPartner
+              ? `Partner · ${typeof count === 'number' ? `${count} Steine` : ''}`
+              : typeof count === 'number'
+              ? `${count} Steine`
+              : ''}
           </span>
           {/* Countdown while it's this player's turn - everyone sees it */}
           {isTheirTurn && renderTurnBar()}

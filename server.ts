@@ -8,7 +8,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 // The Okey rule engine (what counts as a winning hand) lives in its own
 // module so it can be unit-tested on its own: npm run test:rules.
-import { isJokerTile, findWinningDiscard, winPoints, type OkeyTile } from './okeyRules';
+import { isJokerTile, findWinningDiscard, winPoints, paysForWin, type OkeyTile } from './okeyRules';
 
 const app = express();
 const httpServer = createServer(app);
@@ -144,6 +144,10 @@ const OKEY_STARTING_SCORE = 20;
 const TURN_TIME_MS = Number(process.env.OKEY_TURN_MS) || 60000;
 // Someone who is offline shouldn't hold the table up for a full minute.
 const AWAY_TURN_TIME_MS = Number(process.env.OKEY_AWAY_TURN_MS) || 6000;
+// How long a bot "thinks" before playing. Purely cosmetic - instant bots
+// feel wrong at a table - but tunable so an automated run can play whole
+// hands in seconds instead of minutes.
+const BOT_TURN_DELAY_MS = Number(process.env.OKEY_BOT_DELAY_MS) || 1000;
 
 // The only reactions players can send each other - little Okey stones with
 // the calls you'd actually hear at a table (see src/lib/reactions.ts for how
@@ -174,10 +178,27 @@ interface Lobby {
   // its own - every hand just leads straight into "Nächste Runde". Defaults
   // to true when absent (older lobbies, and Tavla where this doesn't apply).
   scoringEnabled?: boolean;
+  // Okey only: "Eşli Okey" - 2 against 2, the players sitting OPPOSITE each
+  // other being partners (seats 1+3 vs 2+4), which is how partnership Okey
+  // is actually played. Needs exactly four players; see teamOfSeat below for
+  // how that seating turns into teams, and declare_win for the scoring.
+  teamMode?: boolean;
   // The Firebase uid that created this lobby (when authRequired) - lets
   // other profiles under the SAME account discover an open lobby without
   // needing the code/link (see broadcastAccountLobbyStatus/subscribe_account).
   ownerUid?: string;
+}
+
+// Docks the players who have to pay when `winnerId` ends a hand (or shows a
+// Gösterme). Who that is comes from the rule engine - see paysForWin in
+// okeyRules.ts, which is where partnership Okey's "the winner's partner is
+// spared too" lives and where it is unit-tested.
+function chargeLosers(lobby: Lobby, winnerId: string, points: number) {
+  const winnerSeat = lobby.players.findIndex(p => p.id === winnerId);
+  if (winnerSeat === -1) return;
+  lobby.players.forEach((p, seat) => {
+    if (paysForWin(winnerSeat, seat, lobby.teamMode === true)) p.score -= points;
+  });
 }
 
 // Every socket signed into account `uid` joins this room (see
@@ -524,7 +545,7 @@ function checkAndTriggerBotTurn(lobby: Lobby) {
     } else if (lobby.gameType === 'tavla') {
       executeTavlaBotTurn(lobby, activePlayer);
     }
-  }, 1000);
+  }, BOT_TURN_DELAY_MS);
 }
 
 function executeOkeyBotTurn(lobby: Lobby, botPlayer: Player) {
@@ -887,7 +908,7 @@ io.on('connection', (socket) => {
     io.to(lobbyId).emit('lobby_updated', lobby);
   });
 
-  socket.on('create_lobby', async ({ gameType, name, idToken, profileId, scoringEnabled }, callback) => {
+  socket.on('create_lobby', async ({ gameType, name, idToken, profileId, scoringEnabled, teamMode }, callback) => {
     const type = gameType === 'tavla' ? 'tavla' : 'okey';
 
     // Tavla still has too many open bugs to expose right now - keep it
@@ -927,6 +948,9 @@ io.on('connection', (socket) => {
     lobby.authRequired = firebaseAdminEnabled;
     lobby.ownerUid = ownerUid;
     lobby.scoringEnabled = scoringEnabled !== false; // default on
+    // Eşli Okey only makes sense with four seats - start_game fills any
+    // empty ones with bots, so a team lobby always ends up 2 against 2.
+    lobby.teamMode = type === 'okey' && teamMode === true;
 
     // Auto-join host as player 1
     const hostPlayer: Player = {
@@ -1290,14 +1314,15 @@ io.on('connection', (socket) => {
     // created with scoring switched off skips all of this - every hand is
     // its own casual round, nobody's score changes, and the match never
     // ends on its own.
+    // In Eşli (partnership) Okey the winner's PARTNER is spared too - only
+    // the opposing pair pays. Since both members of that pair lose the same
+    // amount, their two scores stay identical hand after hand, which is
+    // exactly what "the team has X points left" means; nothing downstream
+    // (match end, final standings) needs to know about teams at all.
     const jokerDiscardWin = isJokerTile(winningDiscard, gs.indicator);
     const scoringOn = lobby.scoringEnabled !== false;
     const pointsLost = scoringOn ? winPoints(winType, jokerDiscardWin) : 0;
-    if (scoringOn) {
-      lobby.players.forEach(p => {
-        if (p.id !== winner.id) p.score -= pointsLost;
-      });
-    }
+    if (scoringOn) chargeLosers(lobby, winner.id, pointsLost);
 
     // The match (this whole run of hands, not just this one) ends once
     // somebody's score drops to zero or below - then the two players left
@@ -1315,7 +1340,9 @@ io.on('connection', (socket) => {
     addLog(
       lobby,
       scoringOn
-        ? `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - jeder andere verliert ${pointsLost} Punkte!`
+        ? lobby.teamMode
+          ? `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - das gegnerische Paar verliert ${pointsLost} Punkte!`
+          : `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''} - jeder andere verliert ${pointsLost} Punkte!`
         : `🏆 ${winner.name} hat OKEY beendet${winLabel ? ` (${winLabel})` : ''}!`
     );
 
@@ -1401,16 +1428,15 @@ io.on('connection', (socket) => {
     if (!gs.gostermeDeclared) gs.gostermeDeclared = {};
     gs.gostermeDeclared[player.id] = true;
 
+    // Same as a win: in a partnership lobby only the opposing pair pays.
     const scoringOn = lobby.scoringEnabled !== false;
-    if (scoringOn) {
-      lobby.players.forEach(p => {
-        if (p.id !== player.id) p.score -= 1;
-      });
-    }
+    if (scoringOn) chargeLosers(lobby, player.id, 1);
     addLog(
       lobby,
       scoringOn
-        ? `✨ ${player.name} zeigt einen Gösterme-Stein - jeder andere verliert 1 Punkt!`
+        ? lobby.teamMode
+          ? `✨ ${player.name} zeigt einen Gösterme-Stein - das gegnerische Paar verliert 1 Punkt!`
+          : `✨ ${player.name} zeigt einen Gösterme-Stein - jeder andere verliert 1 Punkt!`
         : `✨ ${player.name} zeigt einen Gösterme-Stein!`
     );
 

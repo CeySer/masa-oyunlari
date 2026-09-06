@@ -167,6 +167,40 @@ export function winPoints(winType: WinType, jokerDiscardWin: boolean): number {
 }
 
 /**
+ * "Eşli Okey" (partnership Okey): partners are the players sitting OPPOSITE
+ * each other, so around a four-seat table the teams are simply the even
+ * seats against the odd ones.
+ *
+ * One consequence worth knowing while playing: the person before you - the
+ * only one whose discard you may pick up - is an adjacent seat, so always an
+ * opponent. In a partnership game a tile you throw away can therefore only
+ * ever help the other pair, never your own partner.
+ */
+export function teamOfSeat(seat: number): 0 | 1 {
+  return (((seat % 2) + 2) % 2) as 0 | 1;
+}
+
+/** Whether two seats are partners. Always false outside partnership mode. */
+export function arePartners(seatA: number, seatB: number, teamMode: boolean): boolean {
+  return teamMode && teamOfSeat(seatA) === teamOfSeat(seatB);
+}
+
+/**
+ * Whether the player in `seat` is docked points when `winnerSeat` ends a hand.
+ *
+ * Solo Okey: everyone except the winner pays.
+ * Eşli Okey: the winner's PARTNER is spared as well, so only the opposing
+ * pair pays. Because both of them lose the same amount every time, their two
+ * scores stay identical hand after hand - which is precisely what "the team
+ * has X points left" means, and why nothing downstream (match end, final
+ * standings) has to know about teams at all.
+ */
+export function paysForWin(winnerSeat: number, seat: number, teamMode: boolean): boolean {
+  if (seat === winnerSeat) return false;
+  return !arePartners(winnerSeat, seat, teamMode);
+}
+
+/**
  * Given a 15-tile hand, find a tile that can be discarded to leave a valid
  * 14-tile winning hand - and report which kind of win it is.
  *

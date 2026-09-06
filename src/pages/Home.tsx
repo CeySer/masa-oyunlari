@@ -33,6 +33,9 @@ export default function Home() {
   // Traditional Okey scoring (20 points, match runs until someone hits 0) on
   // by default - can be switched off for a casual "just play hands" session.
   const [scoringEnabled, setScoringEnabled] = useState(true);
+  // Eşli Okey: 2 against 2, the players sitting opposite being partners.
+  // Always four seats - empty ones get filled with bots on start.
+  const [teamMode, setTeamMode] = useState(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured && !name) {
@@ -73,7 +76,7 @@ export default function Home() {
 
     socket?.emit(
       'create_lobby',
-      { gameType, name: trimmedName, idToken, profileId, scoringEnabled },
+      { gameType, name: trimmedName, idToken, profileId, scoringEnabled, teamMode },
       (res: any) => {
         if (res.success) {
           if (autoAddBots) {
@@ -345,22 +348,41 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Scoring toggle - only meaningful for Okey */}
+              {/* Scoring + partnership toggles - only meaningful for Okey */}
               {gameType === 'okey' && (
-                <label className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl cursor-pointer" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)' }}>
-                  <span className="text-sm">
-                    <span className="font-semibold">Mit Punktesystem spielen</span>
-                    <span className="block text-[11px] text-[var(--color-text-muted)]">
-                      {scoringEnabled ? 'Start bei 20 Punkten, Match endet bei 0.' : 'Nur einzelne Runden, ohne Punkte.'}
+                <div className="space-y-2.5">
+                  <label className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl cursor-pointer" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)' }}>
+                    <span className="text-sm">
+                      <span className="font-semibold">Mit Punktesystem spielen</span>
+                      <span className="block text-[11px] text-[var(--color-text-muted)]">
+                        {scoringEnabled ? 'Start bei 20 Punkten, Match endet bei 0.' : 'Nur einzelne Runden, ohne Punkte.'}
+                      </span>
                     </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={scoringEnabled}
-                    onChange={(e) => setScoringEnabled(e.target.checked)}
-                    className="w-5 h-5 flex-shrink-0 accent-[var(--color-accent)]"
-                  />
-                </label>
+                    <input
+                      type="checkbox"
+                      checked={scoringEnabled}
+                      onChange={(e) => setScoringEnabled(e.target.checked)}
+                      className="w-5 h-5 flex-shrink-0 accent-[var(--color-accent)]"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl cursor-pointer" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-strong)' }}>
+                    <span className="text-sm">
+                      <span className="font-semibold">Eşli spielen (2 gegen 2)</span>
+                      <span className="block text-[11px] text-[var(--color-text-muted)]">
+                        {teamMode
+                          ? 'Wer sich gegenübersitzt, ist ein Paar. Punkte zählen fürs Paar.'
+                          : 'Jeder für sich.'}
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={teamMode}
+                      onChange={(e) => setTeamMode(e.target.checked)}
+                      className="w-5 h-5 flex-shrink-0 accent-[var(--color-accent)]"
+                    />
+                  </label>
+                </div>
               )}
 
               {/* Actions - big icon-first tiles, minimal text */}
