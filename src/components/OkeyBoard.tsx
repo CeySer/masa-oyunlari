@@ -441,17 +441,11 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   const myTopDiscard = lastDiscardOf(socket?.id || '');
   const canTakeDiscard = isMyTurn && !iHaveDrawn && Boolean(lastDiscardOf(prevPlayer?.id));
 
-  // Auto-sort always leaves the rack packed from the front, so trailing
-  // empty slots past the last real tile are genuinely unused - trim them
-  // instead of always reserving all 30 (a gap slot *between* two groups,
-  // before the last tile, is still meaningful and stays).
-  let lastFilledIdx = -1;
-  for (let i = 0; i < rackSlots.length; i++) {
-    if (rackSlots[i]) lastFilledIdx = i;
-  }
-  const visibleSlotCount = lastFilledIdx + 1;
-  const topRowSlots = rackSlots.slice(0, Math.min(15, visibleSlotCount));
-  const bottomRowSlots = visibleSlotCount > 15 ? rackSlots.slice(15, visibleSlotCount) : [];
+  // The full Istaka: all 30 slots always shown, each empty one numbered -
+  // a real rack has a fixed size and shows every position whether or not
+  // it's occupied.
+  const topRowSlots = rackSlots.slice(0, 15);
+  const bottomRowSlots = rackSlots.slice(15, 30);
 
   // The "gerçek okey" - the one real tile that the indicator turns into the
   // joker (as opposed to the two "sahte okey" wildcards, which are already
@@ -897,19 +891,16 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           </div>
         </div>
 
-        {/* Two rows, each trimmed to just past the last actual tile rather
-            than always reserving 15 slots - auto-sort keeps the rack
-            left-packed, so anything beyond that point is genuinely unused
-            space, not a placeholder anyone needs. */}
+        {/* Two full rows of 15, numbered even when empty - the tile unit is
+            derived from this rack's own width and height budget, so all 30
+            slots always fit across, no horizontal scrolling, on any screen. */}
         <div className="flex flex-col items-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
           <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
             {topRowSlots.map((tile, idx) => renderSlotTile(tile, idx))}
           </div>
-          {bottomRowSlots.length > 0 && (
-            <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
-              {bottomRowSlots.map((tile, idx) => renderSlotTile(tile, 15 + idx))}
-            </div>
-          )}
+          <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
+            {bottomRowSlots.map((tile, idx) => renderSlotTile(tile, 15 + idx))}
+          </div>
         </div>
       </div>
     </div>
