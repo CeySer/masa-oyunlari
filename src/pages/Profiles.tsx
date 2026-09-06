@@ -50,7 +50,7 @@ export default function Profiles() {
 
   return (
     <div
-      className="min-h-screen flex flex-col p-4 sm:p-6 font-sans"
+      className="min-h-[100dvh] flex flex-col p-4 sm:p-6 font-sans"
       style={{
         color: 'var(--color-text)',
         background:
@@ -81,22 +81,25 @@ export default function Profiles() {
         </div>
       </header>
 
-      <main className="max-w-2xl w-full mx-auto my-auto py-10">
+      {/* Starts directly under the header instead of floating in the middle
+          of the screen, and always two per row so the tiles can be big
+          enough to hit comfortably on a phone. */}
+      <main className="max-w-md w-full mx-auto pt-6 pb-10">
         {profilesError && (
           <p className="text-center text-sm mb-4" style={{ color: 'var(--color-accent)' }}>
             {profilesError}
           </p>
         )}
 
-        <div className="flex flex-wrap justify-center gap-5 sm:gap-6">
+        <div className="grid grid-cols-2 gap-5 sm:gap-6">
           {profiles.map((p) => (
             <button
               key={p.id}
               onClick={() => handleSelect(p)}
-              className="group relative flex flex-col items-center gap-2 w-24 sm:w-28"
+              className="group relative flex flex-col items-center gap-2.5"
             >
               <div
-                className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center font-black text-2xl sm:text-3xl text-white transition-transform group-hover:scale-105 group-active:scale-95"
+                className="relative w-full aspect-square rounded-3xl flex items-center justify-center font-black text-5xl sm:text-6xl text-white transition-transform group-hover:scale-[1.03] group-active:scale-95"
                 style={{
                   background: `linear-gradient(145deg, ${p.color}, color-mix(in srgb, ${p.color} 60%, black))`,
                   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 0 10px 24px -10px rgba(0,0,0,0.5)',
@@ -108,33 +111,33 @@ export default function Profiles() {
                     on phones/tablets and make edit/delete undiscoverable. */}
                 <span
                   onClick={(e) => openEdit(p, e)}
-                  className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border-2 transition hover:scale-110"
+                  className="absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center border-2 transition hover:scale-110"
                   style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-bg)', color: 'var(--color-text)' }}
                 >
-                  <Pencil className="w-3 h-3" />
+                  <Pencil className="w-4 h-4" />
                 </span>
                 <span
                   onClick={(e) => handleDelete(p, e)}
-                  className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border-2 transition hover:scale-110"
+                  className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center border-2 transition hover:scale-110"
                   style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-bg)', color: '#ef4444' }}
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-4 h-4" />
                 </span>
               </div>
-              <span className="font-semibold text-sm truncate max-w-full">{p.name}</span>
-              <span className="text-[10px] text-[var(--color-text-muted)]">{p.elo} Elo</span>
+              <span className="font-semibold text-base truncate max-w-full">{p.name}</span>
+              <span className="text-xs text-[var(--color-text-muted)] -mt-1.5">{p.elo} Elo</span>
             </button>
           ))}
 
           {profiles.length < 6 && (
-            <button onClick={openCreate} className="group flex flex-col items-center gap-2 w-24 sm:w-28">
+            <button onClick={openCreate} className="group flex flex-col items-center gap-2.5">
               <div
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center border-2 border-dashed transition-colors group-hover:scale-105"
+                className="w-full aspect-square rounded-3xl flex items-center justify-center border-2 border-dashed transition-transform group-hover:scale-[1.03] group-active:scale-95"
                 style={{ borderColor: 'var(--color-border-strong)', color: 'var(--color-text-muted)' }}
               >
-                <Plus className="w-8 h-8" />
+                <Plus className="w-12 h-12" />
               </div>
-              <span className="font-semibold text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              <span className="font-semibold text-base" style={{ color: 'var(--color-text-muted)' }}>
                 Neues Profil
               </span>
             </button>

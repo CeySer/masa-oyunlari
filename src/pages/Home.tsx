@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
 import { useProfileStore } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
-import { Play, Trophy, Bot, Dices, Layers, Menu, MailWarning, Pencil, Users } from 'lucide-react';
+import { Play, Trophy, Bot, Dices, Layers, Menu, MailWarning, Users } from 'lucide-react';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { enterPresentationMode } from '../lib/presentation';
 import MainMenu from '../components/MainMenu';
@@ -105,7 +105,7 @@ export default function Home() {
 
   return (
     <div
-      className="min-h-screen flex flex-col justify-between p-4 sm:p-6 font-sans"
+      className="min-h-[100dvh] flex flex-col p-4 sm:p-6 font-sans"
       style={{
         color: 'var(--color-text)',
         background:
@@ -131,6 +131,9 @@ export default function Home() {
           </div>
         </button>
 
+        {/* Only two controls up here: the leaderboard, and the menu on the
+            far right. Editing or switching a profile lives inside that menu
+            - it doesn't need its own permanent button in the header. */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowLeaderboard(!showLeaderboard)}
@@ -140,30 +143,12 @@ export default function Home() {
             <Trophy className="w-4 h-4" />
             <span className="hidden sm:inline">Meister-Rangliste</span>
           </button>
-          {isFirebaseConfigured && user && (
-            <button
-              onClick={() => navigate('/profiles', { state: { from: '/' } })}
-              title="Profil wechseln"
-              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs font-semibold transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text)]"
-            >
-              {activeProfile && (
-                <span
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
-                  style={{ background: activeProfile.color }}
-                >
-                  {activeProfile.name.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-              <span className="hidden sm:inline max-w-[6rem] truncate">{activeProfile?.name || '...'}</span>
-              <Pencil className="w-3 h-3 text-[var(--color-text-muted)]" />
-            </button>
-          )}
           <button
             onClick={() => setMenuOpen(true)}
             title="Menü"
-            className="p-2 rounded-lg border transition bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-text-muted)]"
+            className="p-2.5 rounded-xl border transition bg-[var(--color-surface-2)] border-[var(--color-border-strong)] text-[var(--color-text-muted)]"
           >
-            <Menu className="w-4 h-4" />
+            <Menu className="w-5 h-5" />
           </button>
         </div>
       </header>
@@ -193,7 +178,8 @@ export default function Home() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-xl w-full mx-auto my-auto py-8">
+      {/* Starts right under the header instead of floating in the middle */}
+      <main className="max-w-xl w-full mx-auto pt-5 pb-6">
         {showLeaderboard ? (
           <div
             className="rounded-3xl p-6 shadow-2xl animate-fade-in"
@@ -317,7 +303,7 @@ export default function Home() {
                         type="button"
                         disabled={game.disabled}
                         onClick={() => !game.disabled && setGameType(game.id)}
-                        className="group relative flex flex-col items-center gap-2.5 p-4 sm:p-5 rounded-2xl border-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="group relative flex flex-col items-center gap-3 p-5 sm:p-6 rounded-3xl border-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{
                           borderColor: selected ? 'var(--color-accent)' : 'var(--color-border-strong)',
                           background: selected
@@ -337,16 +323,16 @@ export default function Home() {
                           </span>
                         )}
                         <div
-                          className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors"
+                          className="w-16 h-16 rounded-2xl flex items-center justify-center transition-colors"
                           style={{ background: selected ? 'var(--color-accent)' : 'var(--color-surface-3)' }}
                         >
                           <Icon
-                            className="w-6 h-6"
+                            className="w-8 h-8"
                             style={{ color: selected ? 'var(--color-accent-contrast)' : 'var(--color-text-muted)' }}
                           />
                         </div>
                         <div className="text-center">
-                          <div className="font-bold text-sm" style={{ color: selected ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                          <div className="font-bold text-base" style={{ color: selected ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
                             {game.name}
                           </div>
                           <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
@@ -382,10 +368,10 @@ export default function Home() {
                 <button
                   onClick={() => handleCreateLobby(false)}
                   disabled={isFirebaseConfigured && !activeProfile}
-                  className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl font-bold shadow-xl transition active:scale-[0.98] disabled:opacity-60 bg-gradient-to-br from-[var(--color-cta-from)] to-[var(--color-cta-to)] text-white"
+                  className="flex flex-col items-center justify-center gap-2.5 py-7 rounded-3xl font-bold shadow-xl transition active:scale-[0.98] disabled:opacity-60 bg-gradient-to-br from-[var(--color-cta-from)] to-[var(--color-cta-to)] text-white"
                 >
-                  <Play className="w-7 h-7 fill-current" />
-                  <span className="text-xs leading-tight text-center">Online-Lobby</span>
+                  <Play className="w-9 h-9 fill-current" />
+                  <span className="text-sm leading-tight text-center">Online-Lobby</span>
                 </button>
 
                 <button
@@ -393,11 +379,11 @@ export default function Home() {
                     enterPresentationMode();
                     handleCreateLobby(true);
                   }}
-                  className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl font-bold border-2 transition active:scale-[0.98]"
+                  className="flex flex-col items-center justify-center gap-2.5 py-7 rounded-3xl font-bold border-2 transition active:scale-[0.98]"
                   style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-border-strong)', color: 'var(--color-accent)' }}
                 >
-                  <Bot className="w-7 h-7" />
-                  <span className="text-xs leading-tight text-center">Gegen Computer</span>
+                  <Bot className="w-9 h-9" />
+                  <span className="text-sm leading-tight text-center">Gegen Computer</span>
                 </button>
               </div>
 
@@ -427,7 +413,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="max-w-4xl w-full mx-auto flex flex-wrap items-center justify-center gap-2 py-4">
+      <footer className="max-w-4xl w-full mx-auto mt-auto flex flex-wrap items-center justify-center gap-2 py-4">
         {['Echtzeit-Mehrspieler', 'KI-Bots', 'Elo-Rangliste'].map((label) => (
           <span
             key={label}

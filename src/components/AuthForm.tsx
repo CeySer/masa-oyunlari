@@ -64,7 +64,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
       <h2 className="text-lg font-black mb-1" style={{ color: 'var(--color-text)' }}>
         {mode === 'login' ? 'Anmelden' : mode === 'register' ? 'Konto erstellen' : 'Passwort zurücksetzen'}
       </h2>
-      <p className="text-xs mb-5" style={{ color: 'var(--color-text-muted)' }}>
+      <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
         {mode === 'reset'
           ? 'Gib deine E-Mail-Adresse ein - wir schicken dir einen Link zum Zurücksetzen.'
           : 'Melde dich an, um deine Spielerprofile zu verwalten und loszulegen.'}
@@ -76,7 +76,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
             type="button"
             onClick={google}
             disabled={authLoading}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm border mb-4 transition disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm border mb-3 transition disabled:opacity-60"
             style={{ background: 'var(--color-surface-2)', borderColor: 'var(--color-border-strong)', color: 'var(--color-text)' }}
           >
             <svg className="w-4 h-4" viewBox="0 0 48 48">
@@ -88,7 +88,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
             Mit Google anmelden
           </button>
 
-          <div className="relative py-1 mb-4">
+          <div className="relative py-1 mb-3">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t" style={{ borderColor: 'var(--color-border)' }}></div>
             </div>
@@ -174,7 +174,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
       {mode === 'reset' ? (
         <button
           onClick={() => switchMode('login')}
-          className="w-full text-center text-xs mt-4 font-semibold"
+          className="w-full text-center text-xs mt-3 font-semibold"
           style={{ color: 'var(--color-accent)' }}
         >
           Zurück zur Anmeldung
@@ -182,7 +182,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
       ) : (
         <button
           onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
-          className="w-full text-center text-xs mt-4 font-semibold"
+          className="w-full text-center text-xs mt-3 font-semibold"
           style={{ color: 'var(--color-accent)' }}
         >
           {mode === 'login' ? 'Noch kein Konto? Jetzt registrieren' : 'Schon ein Konto? Jetzt anmelden'}

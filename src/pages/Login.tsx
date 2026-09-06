@@ -27,7 +27,7 @@ export default function Login() {
   const from = (location.state as { from?: string } | null)?.from || '/';
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col p-4 sm:p-6 font-sans relative overflow-hidden">
+    <div className="min-h-[100dvh] bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col p-4 sm:p-6 font-sans relative overflow-hidden">
       {/* Decorative Okey tiles - see DECORATIVE_TILES above */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
         {DECORATIVE_TILES.map((t, i) => (
@@ -41,7 +41,7 @@ export default function Login() {
         ))}
       </div>
 
-      <header className="relative z-10 max-w-4xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
+      <header className="relative z-10 max-w-4xl w-full mx-auto flex items-center justify-between pb-3 border-b border-[var(--color-border)]">
         {/* Not a link: there is no valid destination before signing in (see
             note above) - a clickable logo here would just bounce back to
             this same page, which is confusing, not a shortcut. */}
@@ -56,9 +56,12 @@ export default function Login() {
         </div>
       </header>
 
-      <main className="relative z-10 max-w-sm w-full mx-auto my-auto py-10">
+      {/* Centred by growing to fill what's left rather than by outer margins:
+          the card then sits in the middle without the page ever becoming
+          taller than the screen and scrolling. */}
+      <main className="relative z-10 max-w-sm w-full mx-auto flex-1 flex items-center py-4">
         <div
-          className="rounded-3xl border p-6 sm:p-7 shadow-2xl"
+          className="w-full rounded-3xl border p-5 sm:p-7 shadow-2xl"
           style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
           <AuthForm onSuccess={() => navigate(from)} />
