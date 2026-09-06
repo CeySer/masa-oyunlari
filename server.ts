@@ -129,14 +129,21 @@ interface Player {
   score: number;
   elo: number;
   profileId?: string;
+  // Connection dropped (closed tab, WiFi gone, phone asleep). The seat,
+  // the tiles and the score all stay exactly as they are - a bot merely
+  // covers this player's turns until they come back (see armTurnTimer).
+  away?: boolean;
 }
 
 const OKEY_STARTING_SCORE = 20;
 
-// How long a disconnected player's seat is held open before a bot takes
-// over. Long enough to survive a backgrounded tab or a brief WiFi drop,
-// short enough that a genuinely gone player doesn't stall everyone else.
-const RECONNECT_GRACE_MS = 20000;
+// How long a player has for one turn (drawing and discarding together)
+// before the computer plays it for them. Only counts down when somebody is
+// actually waiting - see armTurnTimer. Adjustable without a code change
+// (OKEY_TURN_MS / OKEY_AWAY_TURN_MS), which also keeps tests quick.
+const TURN_TIME_MS = Number(process.env.OKEY_TURN_MS) || 60000;
+// Someone who is offline shouldn't hold the table up for a full minute.
+const AWAY_TURN_TIME_MS = Number(process.env.OKEY_AWAY_TURN_MS) || 6000;
 
 interface Lobby {
   id: string;
@@ -404,6 +411,91 @@ function applyTavlaMove(gs: any, color: 'white' | 'black', fromIndex: number, di
   return true;
 }
 
+// TURN TIMER
+// One pending timeout per lobby. Not kept on gameState because that gets
+// serialised out to clients - only the deadline itself is public.
+const turnTimers = new Map<string, NodeJS.Timeout>();
+
+function clearTurnTimer(lobbyId: string) {
+  const existing = turnTimers.get(lobbyId);
+  if (existing) {
+    clearTimeout(existing);
+    turnTimers.delete(lobbyId);
+  }
+}
+
+/**
+ * Makes sure a countdown is running for whoever is on turn - and that it
+ * isn't restarted mid-turn (drawing a tile must not buy a fresh minute).
+ *
+ * Called at the top of broadcastGameState, so every state change keeps the
+ * timer honest and the deadline it sets goes out with that same broadcast.
+ */
+function armTurnTimer(lobby: Lobby) {
+  const gs = lobby.gameState;
+
+  const stop = () => {
+    clearTurnTimer(lobby.id);
+    if (gs) {
+      gs.turnDeadline = null;
+      gs.timerForTurn = null;
+    }
+  };
+
+  if (!gs || lobby.status !== 'playing' || lobby.gameType !== 'okey') return stop();
+
+  const current = lobby.players[gs.turnIndex];
+  // Bots already move on their own timer, no countdown needed for them.
+  if (!current || current.isBot) return stop();
+
+  // A clock only makes sense while someone is waiting: playing alone
+  // against bots there's nobody to hold up. The exception is a player who
+  // has gone offline - then the table would stall without one.
+  const humans = lobby.players.filter(p => !p.isBot).length;
+  if (humans < 2 && !current.away) return stop();
+
+  // Already counting down for exactly this turn: leave it alone.
+  if (gs.timerForTurn === gs.turnIndex && turnTimers.has(lobby.id)) return;
+
+  clearTurnTimer(lobby.id);
+  const durationMs = current.away ? AWAY_TURN_TIME_MS : TURN_TIME_MS;
+  gs.turnDurationMs = durationMs;
+  gs.turnDeadline = Date.now() + durationMs;
+  gs.timerForTurn = gs.turnIndex;
+
+  const armedFor = gs.turnIndex;
+  turnTimers.set(
+    lobby.id,
+    // Small grace on top so a move that arrives right on the buzzer still
+    // counts as the player's own.
+    setTimeout(() => {
+      turnTimers.delete(lobby.id);
+      onTurnTimeout(lobby, armedFor);
+    }, durationMs + 300)
+  );
+}
+
+/** Time's up: the computer plays this one turn, the seat stays the player's. */
+function onTurnTimeout(lobby: Lobby, armedFor: number) {
+  const gs = lobby.gameState;
+  if (!gs || lobby.status !== 'playing' || gs.turnIndex !== armedFor) return;
+
+  const player = lobby.players[armedFor];
+  if (!player || player.isBot) return;
+
+  addLog(
+    lobby,
+    player.away
+      ? `📴 ${player.name} ist offline - der Computer übernimmt diesen Zug.`
+      : `⏳ Zeit abgelaufen - der Computer übernimmt ${player.name}s Zug.`
+  );
+
+  // Nothing about the player changes here: no "(Bot)" in the name, no lost
+  // seat. They just miss this one turn and can carry on with the next.
+  gs.timerForTurn = null;
+  executeOkeyBotTurn(lobby, player);
+}
+
 // BOT AI CONTROLLER
 function checkAndTriggerBotTurn(lobby: Lobby) {
   if (lobby.status !== 'playing' || !lobby.gameState) return;
@@ -571,6 +663,10 @@ function broadcastGameState(lobby: Lobby) {
   const gs = lobby.gameState;
   if (!gs) return;
 
+  // Before building the payload, so a freshly set deadline goes out with
+  // this very broadcast instead of only with the next one.
+  armTurnTimer(lobby);
+
   const publicState = {
     gameType: lobby.gameType,
     turnIndex: gs.turnIndex,
@@ -586,6 +682,10 @@ function broadcastGameState(lobby: Lobby) {
     diceRolled: gs.diceRolled || false,
     winner: gs.winner || null,
     logs: gs.logs || [],
+    // When the player on turn runs out of time (epoch ms), and how long
+    // they had - the clients draw the countdown bar from these two.
+    turnDeadline: gs.turnDeadline ?? null,
+    turnDurationMs: gs.turnDurationMs ?? TURN_TIME_MS,
     // How many tiles each player is holding. The tiles themselves stay
     // private (only their owner gets 'hand_updated'), but the count is
     // public information at a real table - you can see everyone's rack.
@@ -950,6 +1050,15 @@ io.on('connection', (socket) => {
         lobby.players.push(existingPlayer);
       }
 
+      // Back from being offline: pick the seat straight back up. The bot
+      // only ever covered individual turns, so there is nothing to undo.
+      if (existingPlayer.away) {
+        existingPlayer.away = false;
+        if (lobby.status === 'playing') {
+          addLog(lobby, `🔌 ${existingPlayer.name} ist wieder da und spielt weiter.`);
+        }
+      }
+
       if (callback) callback({ success: true, player: existingPlayer, lobby });
       io.to(lobbyId).emit('lobby_updated', lobby);
       broadcastAccountLobbyStatus(lobby);
@@ -1102,6 +1211,7 @@ io.on('connection', (socket) => {
       // No tiles left anywhere to draw - the round ends in a draw (no winner).
       addLog(lobby, `⚠️ Der Stapel ist leer. Runde endet unentschieden.`);
       lobby.status = 'finished';
+      clearTurnTimer(lobbyId);
       // A draw itself never costs anyone points - but a Gösterme bonus
       // claimed earlier in this same hand can already have dropped someone
       // to 0, so the match can still be over even though nobody won.
@@ -1191,6 +1301,7 @@ io.on('connection', (socket) => {
       : null;
 
     lobby.status = 'finished';
+    clearTurnTimer(lobbyId); // Runde vorbei - keine Zuguhr mehr
     const winLabel = winType === 'pairs' ? 'mit 7 Paaren' : jokerDiscardWin ? 'durch Abwerfen des Okey-Steins' : '';
     addLog(
       lobby,
@@ -1343,38 +1454,23 @@ io.on('connection', (socket) => {
         lobby.tvSocket = null;
       }
       const playerIdx = lobby.players.findIndex(p => p.id === socket.id);
-      if (playerIdx !== -1) {
-        const player = lobby.players[playerIdx];
-        if (!player.isBot && lobby.status === 'playing') {
-          // Don't hand the seat to a bot immediately - a backgrounded tab or
-          // a brief WiFi drop disconnects the socket too, and the client
-          // reconnects with a brand-new socket.id moments later (see
-          // join_lobby's reconnect-rekeying above). Give it a grace period:
-          // if `player.id` still equals THIS (now stale) socket.id when the
-          // timer fires, nobody rekeyed it in the meantime, meaning the
-          // player really didn't come back - only then do we convert to a
-          // bot. A real reconnect naturally cancels this by updating
-          // player.id to the new socket, so the check below just fails.
-          const disconnectedSocketId = socket.id;
-          setTimeout(() => {
-            const stillIdx = lobby.players.findIndex(p => p.id === disconnectedSocketId);
-            if (stillIdx === -1) return; // reconnected (rekeyed) or left already
-            const stillPlayer = lobby.players[stillIdx];
-            if (stillPlayer.isBot || lobby.status !== 'playing') return;
-            stillPlayer.isBot = true;
-            if (!stillPlayer.name.includes('(Bot)')) {
-              stillPlayer.name = `${stillPlayer.name} (Bot)`;
-            }
-            addLog(lobby, `⚡ ${stillPlayer.name} hat die Verbindung getrennt. Bot übernimmt!`);
-            broadcastGameState(lobby);
-            io.to(lobby.id).emit('lobby_updated', lobby);
+      if (playerIdx === -1) return;
 
-            if (lobby.gameState && lobby.gameState.turnIndex === stillIdx) {
-              checkAndTriggerBotTurn(lobby);
-            }
-          }, RECONNECT_GRACE_MS);
-        }
+      const player = lobby.players[playerIdx];
+      if (player.isBot || player.away) return;
+
+      // Mark them away instead of replacing them. Their seat, tiles and
+      // score stay untouched and their name stays their name - the turn
+      // timer just lets the computer cover their turns (on a much shorter
+      // clock, see AWAY_TURN_TIME_MS) until they reconnect. A backgrounded
+      // tab or a WiFi blip therefore costs at most a turn, not the game.
+      player.away = true;
+      if (lobby.status === 'playing') {
+        addLog(lobby, `📴 ${player.name} ist offline - der Computer übernimmt so lange.`);
       }
+      broadcastGameState(lobby);
+      io.to(lobby.id).emit('lobby_updated', lobby);
+      broadcastAccountLobbyStatus(lobby);
     });
   });
 });

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type DragEvent } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { useSoundStore } from '../store/soundStore';
-import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles, Wand2, Bot } from 'lucide-react';
+import { ArrowDown, Trophy, Palette, Hash, ChevronLeft, ChevronRight, Layers, Sparkles, Wand2, Bot, WifiOff } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
 
 interface Tile {
@@ -45,6 +45,39 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
   }, []);
+
+  // Turn countdown. The server sends an absolute deadline; the clock below
+  // just ticks locally so the bar animates between state updates. (A skewed
+  // phone clock would shift the bar a little - the server alone decides when
+  // the time is actually up.)
+  const [now, setNow] = useState(() => Date.now());
+  const turnDeadline: number | null = publicGameState?.turnDeadline ?? null;
+  const turnDurationMs: number = publicGameState?.turnDurationMs ?? 60000;
+  useEffect(() => {
+    if (!turnDeadline) return;
+    const id = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(id);
+  }, [turnDeadline]);
+
+  const remainingMs = turnDeadline ? Math.max(0, turnDeadline - now) : 0;
+  const remainingFraction = turnDeadline ? Math.max(0, Math.min(1, remainingMs / turnDurationMs)) : 0;
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
+  const runningOut = remainingFraction < 0.25;
+
+  // The little bar that runs down under whoever is on turn.
+  const renderTurnBar = () =>
+    turnDeadline ? (
+      <span className="block w-full h-1 rounded-full overflow-hidden mt-0.5" style={{ background: 'var(--table-inset)' }}>
+        <span
+          className="block h-full rounded-full"
+          style={{
+            width: `${remainingFraction * 100}%`,
+            background: runningOut ? '#ef4444' : 'var(--color-accent)',
+            transition: 'width 200ms linear',
+          }}
+        />
+      </span>
+    ) : null;
 
   // Touch drag tracking
   const touchStartSlotRef = useRef<number | null>(null);
@@ -451,22 +484,36 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           </span>
         )}
 
-        <span className={`min-w-0 flex flex-col ${compact ? 'items-start' : 'items-center'}`}>
+        <span className={`min-w-0 flex-1 flex flex-col ${compact ? 'items-start' : 'items-center'}`}>
           <span className="flex items-center gap-1 max-w-full">
             {p.isBot && <Bot className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />}
+            {p.away && <WifiOff className="w-3 h-3 flex-shrink-0 text-red-400" />}
             <span
               className="text-[10px] sm:text-xs font-bold truncate"
-              style={{ color: isTheirTurn ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+              style={{
+                color: isTheirTurn ? 'var(--color-text)' : 'var(--color-text-muted)',
+                opacity: p.away ? 0.6 : 1,
+              }}
             >
               {p.name}
             </span>
           </span>
           <span
             className="text-[9px] leading-none"
-            style={{ color: takeable ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+            style={{
+              color: takeable ? 'var(--color-accent)' : p.away ? '#f87171' : 'var(--color-text-muted)',
+            }}
           >
-            {takeable ? 'aufnehmen' : typeof count === 'number' ? `${count} Steine` : ''}
+            {p.away
+              ? 'offline - Computer übernimmt'
+              : takeable
+              ? 'aufnehmen'
+              : typeof count === 'number'
+              ? `${count} Steine`
+              : ''}
           </span>
+          {/* Countdown while it's this player's turn - everyone sees it */}
+          {isTheirTurn && renderTurnBar()}
         </span>
       </button>
     );
@@ -616,6 +663,18 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
             {iHaveDrawn && isMyTurn && (
               <span className="px-2 py-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full animate-pulse">
                 Abwerfen!
+              </span>
+            )}
+            {/* My own clock - same countdown the others can see under my name */}
+            {isMyTurn && turnDeadline && (
+              <span className="flex items-center gap-1.5 min-w-[4.5rem]">
+                <span className="flex-1">{renderTurnBar()}</span>
+                <span
+                  className="text-[10px] font-bold tabular-nums"
+                  style={{ color: runningOut ? '#f87171' : 'var(--color-text)' }}
+                >
+                  {remainingSeconds}s
+                </span>
               </span>
             )}
           </div>

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { QRCodeSVG } from 'qrcode.react';
-import { Tv, Trophy, Bot, Users, Sparkles, Activity, Play, PlusCircle, Maximize } from 'lucide-react';
+import { Tv, Trophy, Bot, Users, Sparkles, Activity, Play, PlusCircle, Maximize, WifiOff } from 'lucide-react';
 import { OkeyTile } from '../components/OkeyTile';
 import { enterPresentationMode } from '../lib/presentation';
 
@@ -15,6 +15,19 @@ export default function TV() {
   const [lobbyIdInput, setLobbyIdInput] = useState(id || '');
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
   const [connected, setConnected] = useState(false);
+
+  // Turn countdown, driven by the absolute deadline the server broadcasts.
+  const [now, setNow] = useState(() => Date.now());
+  const turnDeadline: number | null = publicGameState?.turnDeadline ?? null;
+  const turnDurationMs: number = publicGameState?.turnDurationMs ?? 60000;
+  useEffect(() => {
+    if (!turnDeadline) return;
+    const timer = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(timer);
+  }, [turnDeadline]);
+  const remainingFraction = turnDeadline
+    ? Math.max(0, Math.min(1, (turnDeadline - now) / turnDurationMs))
+    : 0;
 
   useEffect(() => {
     if (socket && id) {
@@ -326,14 +339,30 @@ export default function TV() {
                 return (
                   <div key={p.id} className={`absolute ${positions[i % 4]} flex items-center gap-4`}>
                     
-                    {/* Player Badge */}
-                    <div className={`px-5 py-2.5 rounded-2xl font-bold text-base transition-all flex items-center gap-2.5 shadow-xl ${
+                    {/* Player Badge - with the same turn countdown the
+                        players see on their own phones */}
+                    <div className={`px-5 py-2.5 rounded-2xl font-bold text-base transition-all flex flex-col gap-1 shadow-xl ${
                       isTurn
                         ? 'bg-amber-400 text-amber-950 ring-4 ring-amber-400/50 scale-105'
                         : 'bg-[var(--color-surface)] text-[var(--color-text)] border border-[var(--color-border)]'
                     }`}>
-                      {p.isBot ? <Bot className="w-5 h-5 text-amber-950" /> : <Users className="w-5 h-5 text-emerald-400" />}
-                      <span>{p.name}</span>
+                      <span className="flex items-center gap-2.5">
+                        {p.isBot ? <Bot className="w-5 h-5 text-amber-950" /> : <Users className="w-5 h-5 text-emerald-400" />}
+                        <span>{p.name}</span>
+                        {p.away && <WifiOff className="w-4 h-4 text-red-500" />}
+                      </span>
+                      {isTurn && turnDeadline && (
+                        <span className="block w-full h-1.5 rounded-full overflow-hidden bg-black/25">
+                          <span
+                            className="block h-full rounded-full"
+                            style={{
+                              width: `${remainingFraction * 100}%`,
+                              background: remainingFraction < 0.25 ? '#ef4444' : '#065f46',
+                              transition: 'width 200ms linear',
+                            }}
+                          />
+                        </span>
+                      )}
                     </div>
 
                     {/* Discard Pile Slot */}
