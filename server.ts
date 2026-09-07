@@ -181,6 +181,7 @@ interface Lobby {
   // whole multi-hand match is over then (not just the current hand), and
   // 'next_round' refuses to deal again. See declare_win.
   matchOver?: boolean;
+  dealId?: number;
   // Okey only: whether the traditional 20-point match scoring applies at
   // all. When false (a casual "just play hands" lobby, chosen at creation),
   // winning a hand never costs anyone points and the match never ends on
@@ -480,6 +481,7 @@ function initOkeyGame(lobby: Lobby) {
     gostermeDeclared: {} as Record<string, boolean>,
   };
   lobby.status = 'playing';
+  lobby.dealId = (lobby.dealId || 0) + 1;
 
   addLog(lobby, `🎮 Spiel gestartet! ${players[firstPlayerIndex].name} ist am Zug.`);
   broadcastGameState(lobby);
@@ -662,13 +664,14 @@ function onTurnTimeout(lobby: Lobby, armedFor: number) {
 function checkAndTriggerBotTurn(lobby: Lobby) {
   if (lobby.status !== 'playing' || !lobby.gameState) return;
   const gs = lobby.gameState;
-  const currentPlayer = lobby.players[gs.turnIndex];
-  
+  const turnWhenQueued = gs.turnIndex;
+  const currentPlayer = lobby.players[turnWhenQueued];
+
   if (!currentPlayer || !currentPlayer.isBot) return;
 
-  // Bot thinking delay for real TV / multiplayer feel
   setTimeout(() => {
     if (lobby.status !== 'playing' || !lobby.gameState) return;
+    if (lobby.gameState.turnIndex !== turnWhenQueued) return;
     const activePlayer = lobby.players[lobby.gameState.turnIndex];
     if (!activePlayer || !activePlayer.isBot) return;
 
@@ -751,6 +754,7 @@ function shouldTakeDiscard(topDiscard: OkeyTile, hand: OkeyTile[], difficulty: '
 function executeOkeyBotTurn(lobby: Lobby, botPlayer: Player) {
   const gs = lobby.gameState;
   if (!gs || lobby.status !== 'playing') return;
+  if (lobby.players[gs.turnIndex]?.id !== botPlayer.id) return;
   if (!gs.hands[botPlayer.id]) {
     gs.hands[botPlayer.id] = [];
   }
@@ -800,28 +804,40 @@ function executeOkeyBotTurn(lobby: Lobby, botPlayer: Player) {
     return;
   }
 
-  // 3. Discard if 15 or more
   if (hand.length >= 15) {
     executeOkeyBotDiscard(lobby, botPlayer);
+    return;
   }
+
+  // Can't draw and can't discard — don't freeze the table.
+  addLog(lobby, `⚠️ ${botPlayer.name} konnte nicht ziehen - Zug wird weitergegeben.`);
+  gs.turnIndex = (gs.turnIndex + 1) % lobby.players.length;
+  broadcastGameState(lobby);
+  checkAndTriggerBotTurn(lobby);
 }
 
 function executeOkeyBotDiscard(lobby: Lobby, botPlayer: Player) {
   const gs = lobby.gameState;
   if (!gs || lobby.status !== 'playing') return;
+  if (lobby.players[gs.turnIndex]?.id !== botPlayer.id) return;
   const hand = gs.hands[botPlayer.id];
-  if (!hand || hand.length < 15) return;
+  if (!hand || hand.length < 15) {
+    checkAndTriggerBotTurn(lobby);
+    return;
+  }
 
   // A bot never sits on a hand that has already won - if any discard
   // completes a valid hand, take it, exactly like a human's "Okey über
   // Stein werfen" auto-win in discard_tile.
   const winningDiscard = findWinningDiscard(hand, gs.indicator);
   if (winningDiscard) {
-    const idx = hand.findIndex(t => t.id === winningDiscard.tile.id);
-    const rest14 = [...hand.slice(0, idx), ...hand.slice(idx + 1)];
-    const tile = hand.splice(idx, 1)[0];
-    finishHandWithWin(lobby, lobby.id, botPlayer, tile, winningDiscard.type, rest14);
-    return;
+    const idx = hand.findIndex(t => Number(t.id) === Number(winningDiscard.tile.id));
+    if (idx !== -1) {
+      const rest14 = [...hand.slice(0, idx), ...hand.slice(idx + 1)];
+      const tile = hand.splice(idx, 1)[0];
+      finishHandWithWin(lobby, lobby.id, botPlayer, tile, winningDiscard.type, rest14);
+      return;
+    }
   }
 
   const difficulty: 'easy' | 'hard' = lobby.botDifficulty === 'hard' ? 'hard' : 'easy';
@@ -932,6 +948,7 @@ function broadcastGameState(lobby: Lobby) {
     // How many tiles each player is holding. The tiles themselves stay
     // private (only their owner gets 'hand_updated'), but the count is
     // public information at a real table - you can see everyone's rack.
+    dealId: lobby.dealId || 0,
     handCounts: gs.hands
       ? lobby.players.reduce((acc: Record<string, number>, p) => {
           acc[p.id] = (gs.hands[p.id] || []).length;
@@ -1254,7 +1271,12 @@ io.on('connection', (socket) => {
 
       // Check if player already in lobby (match by profileId when available,
       // since the socket id changes on every reconnect)
-      let existingPlayer = lobby.players.find(p => (profile && p.profileId === profile.id) || p.id === socket.id || p.name === playerName);
+      let existingPlayer = lobby.players.find(p =>
+        (profile && p.profileId === profile.id) ||
+        p.id === socket.id ||
+        p.name === playerName ||
+        p.name === `${playerName} (Bot)`
+      );
       if (existingPlayer) {
         const oldId = existingPlayer.id;
         existingPlayer.id = socket.id; // update socket id
@@ -1280,6 +1302,14 @@ io.on('connection', (socket) => {
               gs.playerColors[socket.id] = gs.playerColors[oldId];
               delete gs.playerColors[oldId];
             }
+            if (gs.drawnThisHand && oldId in gs.drawnThisHand) {
+              gs.drawnThisHand[socket.id] = gs.drawnThisHand[oldId];
+              delete gs.drawnThisHand[oldId];
+            }
+            if (gs.gostermeDeclared && oldId in gs.gostermeDeclared) {
+              gs.gostermeDeclared[socket.id] = gs.gostermeDeclared[oldId];
+              delete gs.gostermeDeclared[oldId];
+            }
           }
         }
       } else {
@@ -1297,10 +1327,15 @@ io.on('connection', (socket) => {
         lobby.players.push(existingPlayer);
       }
 
-      // Back from being offline: pick the seat straight back up. The bot
-      // only ever covered individual turns, so there is nothing to undo.
-      if (existingPlayer.away) {
+      // Back from being offline or from a seat the table had turned into a
+      // stand-in bot: this is a human again, same name, same tiles.
+      if (existingPlayer.away || existingPlayer.isBot) {
         existingPlayer.away = false;
+        existingPlayer.isBot = false;
+        if (existingPlayer.name.endsWith(' (Bot)')) {
+          existingPlayer.name = existingPlayer.name.replace(/ \(Bot\)$/, '');
+        }
+        if (playerName) existingPlayer.name = playerName;
         if (lobby.status === 'playing') {
           addLog(lobby, `🔌 ${existingPlayer.name} ist wieder da und spielt weiter.`);
         }
@@ -1364,18 +1399,12 @@ io.on('connection', (socket) => {
       const leavingPlayer = lobby.players[playerIdx];
 
       if (lobby.status === 'playing') {
-        leavingPlayer.isBot = true;
-        if (!leavingPlayer.name.includes('(Bot)')) {
-          leavingPlayer.name = `${leavingPlayer.name} (Bot)`;
-        }
-        addLog(lobby, `🚪 ${leavingPlayer.name} hat das Spiel verlassen. Bot übernimmt!`);
+        leavingPlayer.away = true;
+        leavingPlayer.isBot = false;
+        addLog(lobby, `🚪 ${leavingPlayer.name} ist weg - der Computer übernimmt so lange.`);
 
         broadcastGameState(lobby);
         io.to(lobbyId).emit('lobby_updated', lobby);
-
-        if (lobby.gameState && lobby.gameState.turnIndex === playerIdx) {
-          checkAndTriggerBotTurn(lobby);
-        }
       } else {
         lobby.players.splice(playerIdx, 1);
         io.to(lobbyId).emit('lobby_updated', lobby);
@@ -1561,6 +1590,13 @@ io.on('connection', (socket) => {
   socket.on('next_round', ({ lobbyId }) => {
     const lobby = lobbies.get(lobbyId);
     if (!lobby || lobby.status !== 'finished' || lobby.gameType !== 'okey' || lobby.matchOver) return;
+    lobby.players.forEach((p) => {
+      if (p.isBot && (p.profileId || p.name.endsWith(' (Bot)'))) {
+        p.isBot = false;
+        p.away = false;
+        if (p.name.endsWith(' (Bot)')) p.name = p.name.replace(/ \(Bot\)$/, '');
+      }
+    });
     initOkeyGame(lobby);
   });
 
