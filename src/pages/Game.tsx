@@ -17,7 +17,7 @@ import { Bot, Trophy, RefreshCw, Menu } from 'lucide-react';
 export default function Game() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { socket, lobby, publicGameState, player, gameResult, clearGameResult } = useGameStore();
+  const { socket, lobby, publicGameState, player, gameResult, clearGameResult, setPlayer } = useGameStore();
   const { authReady, getIdToken } = useAuthStore();
   const { activeProfile, profilesReady } = useProfileStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
@@ -46,7 +46,9 @@ export default function Game() {
     if (socket && id && !player && authReady && (!isFirebaseConfigured || profilesReady)) {
       const storedName = activeProfile?.name || localStorage.getItem('playerName') || 'Spieler';
       getIdToken().then((idToken) => {
-        socket.emit('join_lobby', { lobbyId: id, name: storedName, role: 'player', idToken, profileId: activeProfile?.id });
+        socket.emit('join_lobby', { lobbyId: id, name: storedName, role: 'player', idToken, profileId: activeProfile?.id }, (res: any) => {
+          if (res?.success && res.player) setPlayer(res.player);
+        });
       });
     }
   }, [socket, id, player, authReady, profilesReady, activeProfile]);
@@ -70,8 +72,11 @@ export default function Game() {
 
   const handleNextRound = () => {
     socket?.emit('next_round', { lobbyId: id });
-    clearGameResult();
   };
+
+  useEffect(() => {
+    if (lobby?.status === 'playing' && gameResult) clearGameResult();
+  }, [lobby?.status, gameResult, clearGameResult]);
 
   if (!lobby || !publicGameState) {
     return (
