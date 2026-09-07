@@ -11,6 +11,7 @@ import InGameMenu from '../components/InGameMenu';
 import RotateHint from '../components/RotateHint';
 import OkeyBoard from '../components/OkeyBoard';
 import TavlaBoard from '../components/TavlaBoard';
+import { OkeyTile } from '../components/OkeyTile';
 import { Bot, Trophy, RefreshCw, Menu } from 'lucide-react';
 
 export default function Game() {
@@ -113,12 +114,28 @@ export default function Game() {
           <p className="text-[var(--color-text-muted)] text-sm mb-6">Der Nachziehstapel ist leer - niemand konnte Okey ausrufen.</p>
         )}
         {isOkey && scoringEnabled && gameResult?.winner && !gameResult?.reason && (
-          <p className="text-[var(--color-text-muted)] text-sm mb-6">
+          <p className="text-[var(--color-text-muted)] text-sm mb-3">
             Gewonnen{winTypeLabel} -{' '}
             {lobby.teamMode
               ? `das gegnerische Paar verliert ${gameResult.pointsLost} Punkte.`
               : `jeder andere Spieler verliert ${gameResult.pointsLost} Punkte.`}
           </p>
+        )}
+        {isOkey && gameResult?.winningHand && gameResult.winningHand.length > 0 && (
+          <div className="w-full max-w-xl mb-5">
+            <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Gewinn-Hand</p>
+            <div className="flex flex-wrap justify-center gap-1">
+              {gameResult.winningHand.map((t) => (
+                <OkeyTile key={t.id} tile={t} size="sm" />
+              ))}
+            </div>
+            {gameResult.winningDiscard && (
+              <div className="mt-3 flex flex-col items-center gap-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Abgeworfen</p>
+                <OkeyTile tile={gameResult.winningDiscard} size="sm" />
+              </div>
+            )}
+          </div>
         )}
         {matchOver && gameResult?.matchWinners && (
           <p className="text-sm mb-2 font-bold" style={{ color: 'var(--color-accent)' }}>
