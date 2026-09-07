@@ -46,7 +46,7 @@ function computeGroupedSlots(tiles: Tile[], indicator: Tile | undefined | null):
     let run: Tile[] = [];
     const flush = () => {
       if (run.length >= 3) {
-        run.forEach((t) => used.add(t.id));
+        run.forEach((t) => used.add(Number(t.id)));
         groups.push(run);
       }
       run = [];
@@ -64,7 +64,7 @@ function computeGroupedSlots(tiles: Tile[], indicator: Tile | undefined | null):
   });
 
   // 2) Sets, from whatever the run pass didn't use
-  const afterRuns = rest.filter((t) => !used.has(t.id));
+  const afterRuns = rest.filter((t) => !used.has(Number(t.id)));
   const byValue = new Map<number, Tile[]>();
   afterRuns.forEach((t) => {
     if (!byValue.has(t.value)) byValue.set(t.value, []);
@@ -80,14 +80,14 @@ function computeGroupedSlots(tiles: Tile[], indicator: Tile | undefined | null):
       }
     });
     if (setTiles.length >= 3) {
-      setTiles.forEach((t) => used.add(t.id));
+      setTiles.forEach((t) => used.add(Number(t.id)));
       groups.push(setTiles);
     }
   });
 
   // 3) Leftovers - just sorted for readability
   const leftover = rest
-    .filter((t) => !used.has(t.id))
+    .filter((t) => !used.has(Number(t.id)))
     .sort((a, b) => (a.color !== b.color ? a.color.localeCompare(b.color) : a.value - b.value));
 
   const newSlots: (Tile | null)[] = Array(TOTAL_SLOTS).fill(null);
@@ -148,6 +148,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   // The whole board sizes itself off the space it actually has (see
   // useBoardScale) instead of breakpoints, so it fits any phone in landscape
   // without scrolling and scales up rather than out on a tablet or TV.
+  const lastDealIdRef = useRef<number>(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const { scale, vars } = useBoardScale(rootRef);
   // Text can't shrink as far as tiles can before it stops being readable.
@@ -243,9 +244,13 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     const handMap = new Map(hand.map((t) => [Number(t.id), t]));
     const currentIds = new Set(rackSlots.filter((t): t is Tile => t !== null).map((t) => Number(t.id)));
     const missingTiles = hand.filter((t) => !currentIds.has(Number(t.id)));
-    const isFreshDeal = hand.length >= 14 && missingTiles.length === hand.length;
+    const dealId = publicGameState?.dealId ?? 0;
+    const isFreshDeal =
+      hand.length >= 14 &&
+      (currentIds.size === 0 || dealId !== lastDealIdRef.current || missingTiles.length === hand.length);
 
     if (isFreshDeal) {
+      lastDealIdRef.current = dealId;
       setRackSlots(computeGroupedSlots(hand as Tile[], publicGameState?.indicator));
       setJokerFlip({});
       setDealingTileIds(new Set(hand.map((t) => Number(t.id))));
