@@ -810,14 +810,19 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       </div>
 
       {/* ---------- ISTAKA (the wooden rack) ---------- */}
-      <div
-        className="rounded-2xl shadow-2xl relative flex-shrink-0"
-        style={{
-          background: 'var(--rack-wood)',
-          border: '2px solid var(--rack-wood-edge)',
-          padding: sp(6, 4),
-        }}
-      >
+      {/* Capped at the same max-width as the felt table above, and centered
+          the same way, so the rack lines up with the table's edges instead
+          of stretching all the way to the screen edge on a wide/TV screen. */}
+      <div className="w-full flex justify-center flex-shrink-0">
+        <div
+          className="w-full rounded-2xl shadow-2xl relative"
+          style={{
+            maxWidth: 'min(100%, 1280px)',
+            background: 'var(--rack-wood)',
+            border: '2px solid var(--rack-wood-edge)',
+            padding: sp(6, 4),
+          }}
+        >
         <div className="relative flex items-center justify-between" style={{ marginBottom: sp(4, 3) }}>
           {reactionFor(socket?.id || '') && (
             <span
@@ -862,6 +867,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
             {bottomRowSlots.map((tile, idx) => renderSlotTile(tile, 15 + idx))}
           </div>
+        </div>
         </div>
       </div>
     </div>
