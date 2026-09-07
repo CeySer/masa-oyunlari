@@ -228,7 +228,8 @@ function finishHandWithWin(
   lobbyId: string,
   winner: Player,
   winningDiscard: OkeyTile,
-  winType: WinType
+  winType: WinType,
+  winningHand: OkeyTile[]
 ) {
   const gs = lobby.gameState;
 
@@ -289,7 +290,16 @@ function finishHandWithWin(
   // was mutated on the server but the client never learned about it and
   // showed everyone stuck at 0.
   io.to(lobbyId).emit('lobby_updated', lobby);
-  io.to(lobbyId).emit('game_ended', { winner, players: lobby.players, winType, pointsLost, matchOver, matchWinners });
+  io.to(lobbyId).emit('game_ended', {
+    winner,
+    players: lobby.players,
+    winType,
+    pointsLost,
+    matchOver,
+    matchWinners,
+    winningHand,
+    winningDiscard,
+  });
   io.emit('leaderboard_updated', Object.values(globalLeaderboard));
 }
 
@@ -808,8 +818,9 @@ function executeOkeyBotDiscard(lobby: Lobby, botPlayer: Player) {
   const winningDiscard = findWinningDiscard(hand, gs.indicator);
   if (winningDiscard) {
     const idx = hand.findIndex(t => t.id === winningDiscard.tile.id);
+    const rest14 = [...hand.slice(0, idx), ...hand.slice(idx + 1)];
     const tile = hand.splice(idx, 1)[0];
-    finishHandWithWin(lobby, lobby.id, botPlayer, tile, winningDiscard.type);
+    finishHandWithWin(lobby, lobby.id, botPlayer, tile, winningDiscard.type, rest14);
     return;
   }
 
@@ -1478,7 +1489,7 @@ io.on('connection', (socket) => {
     const tile = hand.splice(tileIdx, 1)[0];
 
     if (winType) {
-      finishHandWithWin(lobby, lobbyId, currentPlayer, tile, winType);
+      finishHandWithWin(lobby, lobbyId, currentPlayer, tile, winType, rest14);
       return;
     }
 
@@ -1522,9 +1533,10 @@ io.on('connection', (socket) => {
 
     // Remove the tile that completes the winning hand from play (it's the "extra" 15th tile).
     const idx = hand.findIndex(t => t.id === winningDiscard.id);
+    const rest14 = idx === -1 ? [...hand] : [...hand.slice(0, idx), ...hand.slice(idx + 1)];
     if (idx !== -1) hand.splice(idx, 1);
 
-    finishHandWithWin(lobby, lobbyId, winner, winningDiscard, winType);
+    finishHandWithWin(lobby, lobbyId, winner, winningDiscard, winType, rest14);
   });
 
   // Throwing a reaction stone onto the table. Only ids from the fixed list
