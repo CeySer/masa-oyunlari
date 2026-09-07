@@ -17,6 +17,8 @@ export interface GameResult {
   pointsLost?: number;
   matchOver?: boolean;
   matchWinners?: { id: string; name: string; score: number }[] | null;
+  winningHand?: { id: number; color: string; value: number }[];
+  winningDiscard?: { id: number; color: string; value: number };
 }
 
 // A lobby another profile under the SAME account currently has open,
@@ -127,10 +129,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ leaderboard });
       });
 
-      socket.on('game_ended', ({ winner, reason, winType, pointsLost, matchOver, matchWinners }) => {
+      socket.on('game_ended', ({ winner, reason, winType, pointsLost, matchOver, matchWinners, winningHand, winningDiscard }) => {
         set((state) => ({
           lobby: state.lobby ? { ...state.lobby, status: 'finished' } : null,
-          gameResult: { winner: winner || null, reason, winType, pointsLost, matchOver, matchWinners },
+          gameResult: { winner: winner || null, reason, winType, pointsLost, matchOver, matchWinners, winningHand, winningDiscard },
         }));
       });
 
