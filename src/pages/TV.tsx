@@ -5,6 +5,7 @@ import { useUIStore } from '../store/uiStore';
 import { QRCodeSVG } from 'qrcode.react';
 import { Tv, Trophy, Bot, Users, Activity, Play, PlusCircle, ArrowLeft, WifiOff } from 'lucide-react';
 import { OkeyTile } from '../components/OkeyTile';
+import TVOkeyTable from '../components/TVOkeyTable';
 import { enterPresentationMode } from '../lib/presentation';
 
 export default function TV() {
@@ -311,89 +312,7 @@ export default function TV() {
         <div className="flex-1 min-h-0 my-3 2xl:my-6 flex items-center justify-center relative">
           
           {publicGameState.gameType === 'okey' ? (
-            /* Okey TV Layout */
-            <div
-              className="w-full max-w-6xl h-full min-h-0 rounded-3xl p-4 2xl:p-8 relative flex flex-col items-center justify-center shadow-2xl"
-              style={{ background: 'var(--table-felt)', border: '4px solid var(--table-edge)' }}
-            >
-              
-              {/* Central Draw Pile & Gösterge */}
-              <div className="flex items-center gap-10 bg-[var(--color-surface)] border border-[var(--color-border)] px-10 py-8 rounded-3xl shadow-2xl z-10">
-                
-                {/* Pile count */}
-                <div className="flex flex-col items-center">
-                  <div className="w-24 h-32 bg-gradient-to-br from-amber-100 to-amber-200 text-amber-950 rounded-2xl shadow-xl border-4 border-amber-300 flex items-center justify-center font-black text-4xl">
-                    {publicGameState.pileCount}
-                  </div>
-                  <span className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] mt-2">Rest-Stapel</span>
-                </div>
-
-                {/* Gösterge Indicator Tile */}
-                {publicGameState.indicator && (
-                  <div className="flex flex-col items-center border-l border-[var(--color-border)] pl-10">
-                    <OkeyTile tile={publicGameState.indicator} size="lg" className="border-amber-400" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-[var(--color-accent)] mt-2">Gösterge (Okey-Indikator)</span>
-                  </div>
-                )}
-
-              </div>
-
-              {/* 4 Seating Positions Around Table */}
-              {lobby.players.map((p: any, i: number) => {
-                const isTurn = i === publicGameState.turnIndex;
-                const positions = [
-                  "bottom-4 left-1/2 -translate-x-1/2 flex-col-reverse",
-                  "top-1/2 right-6 -translate-y-1/2 flex-row",
-                  "top-4 left-1/2 -translate-x-1/2 flex-col",
-                  "top-1/2 left-6 -translate-y-1/2 flex-row-reverse"
-                ];
-
-                const discardList = publicGameState.discardPiles[p.id] || [];
-                const topDiscard = discardList[discardList.length - 1];
-
-                return (
-                  <div key={p.id} className={`absolute ${positions[i % 4]} flex items-center gap-4`}>
-                    
-                    {/* Player Badge - with the same turn countdown the
-                        players see on their own phones */}
-                    <div className={`px-5 py-2.5 rounded-2xl font-bold text-base transition-all flex flex-col gap-1 shadow-xl ${
-                      isTurn
-                        ? 'bg-amber-400 text-amber-950 ring-4 ring-amber-400/50 scale-105'
-                        : 'bg-[var(--color-surface)] text-[var(--color-text)] border border-[var(--color-border)]'
-                    }`}>
-                      <span className="flex items-center gap-2.5">
-                        {p.isBot ? <Bot className="w-5 h-5 text-amber-950" /> : <Users className="w-5 h-5 text-emerald-400" />}
-                        <span>{p.name}</span>
-                        {p.away && <WifiOff className="w-4 h-4 text-red-500" />}
-                      </span>
-                      {isTurn && turnDeadline && (
-                        <span className="block w-full h-1.5 rounded-full overflow-hidden bg-black/25">
-                          <span
-                            className="block h-full rounded-full"
-                            style={{
-                              width: `${remainingFraction * 100}%`,
-                              background: remainingFraction < 0.25 ? '#ef4444' : '#065f46',
-                              transition: 'width 200ms linear',
-                            }}
-                          />
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Discard Pile Slot */}
-                    <div className="w-20 h-28 bg-[var(--color-surface)] rounded-2xl border-2 border-[var(--color-border-strong)] flex flex-col items-center justify-center relative shadow-xl">
-                      {topDiscard ? (
-                        <OkeyTile tile={topDiscard} size="lg" className="absolute inset-0 border-amber-300" />
-                      ) : (
-                        <span className="text-[10px] text-[var(--color-text-muted)] font-bold uppercase">Ablage</span>
-                      )}
-                    </div>
-
-                  </div>
-                );
-              })}
-
-            </div>
+            <TVOkeyTable lobby={lobby} publicGameState={publicGameState} remainingFraction={remainingFraction} />
           ) : (
             /* Tavla TV Board View */
             <div className="w-full max-w-5xl bg-amber-950 border-4 border-amber-900 rounded-3xl p-8 shadow-2xl text-center">
