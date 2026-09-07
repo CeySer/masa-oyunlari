@@ -574,13 +574,13 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
 
         <span className="relative flex-shrink-0 leading-none">
           {discard ? (
-            <OkeyTile tile={discard} scale={0.9} className={takeable ? 'ring-2 ring-emerald-400' : ''} />
+            <OkeyTile tile={discard} scale={RACK_TILE_SCALE} className={takeable ? 'ring-2 ring-emerald-400' : ''} />
           ) : (
             <span
               className="block rounded-md"
               style={{
-                width: `calc(var(--tile-w) * 0.9)`,
-                height: `calc(var(--tile-h) * 0.9)`,
+                width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`,
+                height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})`,
                 border: '2px solid rgba(255,255,255,0.22)',
                 background: 'rgba(0,0,0,0.08)',
               }}
@@ -599,9 +599,9 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   const renderCentre = () => (
     <div className="flex items-center justify-center" style={{ gap: sp(8, 5) }}>
       {publicGameState.indicator ? (
-        <OkeyTile tile={publicGameState.indicator} scale={1} />
+        <OkeyTile tile={publicGameState.indicator} scale={RACK_TILE_SCALE} />
       ) : (
-        <span style={{ width: 'var(--tile-w)', height: 'var(--tile-h)' }} />
+        <span style={{ width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`, height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})` }} />
       )}
       <button
         onClick={handleDrawPile}
@@ -611,7 +611,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       >
         <OkeyTile
           tile={{ id: -1, color: 'black', value: publicGameState.pileCount ?? 0 }}
-          scale={1}
+          scale={RACK_TILE_SCALE}
           className={isMyTurn && !iHaveDrawn ? 'ring-2 ring-[var(--color-accent)]' : ''}
         />
       </button>
@@ -677,7 +677,24 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       style={{ ...(vars as CSSProperties) }}
     >
       <div className="relative flex-1 min-h-0 w-full overflow-hidden">
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">{renderOpponent(seats.top, 'top')}</div>
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 z-20">
+          {isMyTurn ? (
+            <div
+              className="px-3 py-0.5 font-black rounded-full shadow animate-pulse whitespace-nowrap"
+              style={{ fontSize: fs(11, 9), background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
+            >
+              {iHaveDrawn ? 'Dein Zug — Stein auf Ablage legen' : 'Dein Zug'}
+            </div>
+          ) : (
+            <div
+              className="px-3 py-0.5 font-semibold rounded-full shadow whitespace-nowrap"
+              style={{ fontSize: fs(11, 9), background: 'rgba(8,30,18,0.75)', color: '#f8efda' }}
+            >
+              Am Zug: {currentPlayer?.name}
+            </div>
+          )}
+        </div>
+        <div className="absolute top-9 left-1/2 -translate-x-1/2 z-10">{renderOpponent(seats.top, 'top')}</div>
         <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">{renderOpponent(seats.left, 'left')}</div>
         <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{renderOpponent(seats.right, 'right')}</div>
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -703,24 +720,33 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
                 <span className="font-bold" style={{ fontSize: fs(12, 9), color: '#f8efda' }}>{me.name}</span>
                 <span className="font-black" style={{ fontSize: fs(12, 9), color: '#e8c56a' }}>{hand.length}</span>
               </span>
-              <div
-                onDragOver={handleDragOver}
-                onDrop={handleDropDiscardZone}
-                onClick={() => {
-                  if (selectedTile && isMyTurn && iHaveDrawn) handleDiscard();
-                }}
-                title="Ablegen"
-                className={`flex items-center justify-center ${isMyTurn && iHaveDrawn ? 'cursor-pointer' : ''}`}
-                style={{
-                  width: `calc(var(--tile-w) * 0.9)`,
-                  height: `calc(var(--tile-h) * 0.9)`,
-                  outline: isMyTurn && iHaveDrawn ? '2px dashed #ef4444' : undefined,
-                  outlineOffset: '2px',
-                  borderRadius: 6,
-                  border: myTopDiscard ? undefined : '2px solid rgba(255,255,255,0.22)',
-                }}
-              >
-                {myTopDiscard && <OkeyTile tile={myTopDiscard} scale={0.9} />}
+              <div className="flex flex-col items-center" style={{ gap: sp(3, 2) }}>
+                <span
+                  className="font-bold uppercase tracking-wide"
+                  style={{ fontSize: fs(9, 7), color: isMyTurn && iHaveDrawn ? '#f87171' : 'rgba(248,239,218,0.7)' }}
+                >
+                  Ablage
+                </span>
+                <div
+                  onDragOver={handleDragOver}
+                  onDrop={handleDropDiscardZone}
+                  onClick={() => {
+                    if (selectedTile && isMyTurn && iHaveDrawn) handleDiscard();
+                  }}
+                  title="Stein hier ablegen"
+                  className={`flex items-center justify-center ${isMyTurn && iHaveDrawn ? 'cursor-pointer' : ''}`}
+                  style={{
+                    width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`,
+                    height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})`,
+                    outline: isMyTurn && iHaveDrawn ? '2px dashed #ef4444' : undefined,
+                    outlineOffset: '2px',
+                    borderRadius: 6,
+                    border: myTopDiscard ? undefined : '2px solid rgba(255,255,255,0.35)',
+                    background: isMyTurn && iHaveDrawn && !myTopDiscard ? 'rgba(239,68,68,0.12)' : undefined,
+                  }}
+                >
+                  {myTopDiscard && <OkeyTile tile={myTopDiscard} scale={RACK_TILE_SCALE} />}
+                </div>
               </div>
             </div>
           )}
