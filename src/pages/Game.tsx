@@ -204,40 +204,19 @@ export default function Game() {
   }
 
   return (
-    <div className="game-shell bg-[var(--color-bg)] text-[var(--color-text)] flex flex-col select-none p-1 sm:p-2 gap-1 sm:gap-2">
+    <div className="game-shell text-[var(--color-text)] flex flex-col select-none" style={{ background: 'var(--table-felt)' }}>
 
-      {/* Top Header - one thin strip, so essentially the whole viewport
-          belongs to the board. Everything else (leaving the game, sound,
-          design) lives behind the burger menu. Whoever's turn it is sits
-          truly centered (absolute, not just "first in a flex row") so it
-          stays centered regardless of the burger button's width. */}
-      <header className="relative flex items-center justify-end flex-shrink-0">
-        <div className="absolute left-1/2 -translate-x-1/2 max-w-[70%]">
-          {isMyTurn ? (
-            <div className="px-3 py-0.5 bg-[var(--color-accent)] text-[var(--color-accent-contrast)] font-black rounded-full text-[11px] shadow animate-pulse whitespace-nowrap">
-              ★ DU BIST AM ZUG ★
-            </div>
-          ) : (
-            <div className="px-2.5 py-0.5 bg-[var(--color-surface-2)] text-[var(--color-text)] font-semibold rounded-full text-[11px] flex items-center gap-1.5 border border-[var(--color-border-strong)] min-w-0 justify-center">
-              {currentPlayer?.isBot && <Bot className="w-3 h-3 flex-shrink-0 text-[var(--color-accent)]" />}
-              <span className="truncate">Am Zug: {currentPlayer?.name}</span>
-            </div>
-          )}
-        </div>
-
+      <header className="absolute top-1 right-1 z-30">
         <button
           onClick={() => setMenuOpen(true)}
           title="Menü"
-          className="relative p-1 flex-shrink-0 bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] rounded-lg border border-[var(--color-border-strong)]"
+          className="relative p-1.5 flex-shrink-0 bg-black/25 hover:bg-black/40 text-white rounded-full"
         >
           <Menu className="w-4 h-4" />
         </button>
       </header>
 
-      {/* Main Game Area - takes all remaining height, never more */}
-      {/* Wide cap rather than a narrow reading width: on a big screen the
-          board should get bigger, not sit in a letterboxed column. */}
-      <main className="flex-1 min-h-0 w-full max-w-[1600px] mx-auto flex flex-col">
+      <main className="flex-1 min-h-0 w-full flex flex-col">
         {lobby.gameType === 'tavla' ? <TavlaBoard lobbyId={id!} /> : <OkeyBoard lobbyId={id!} />}
       </main>
 
