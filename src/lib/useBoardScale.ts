@@ -43,7 +43,7 @@ const REFERENCE_TILE_W = 42;
  * opponent's name plaque (scale 0.62 in renderOpponent()) - the size the
  * user singled out as the one to use everywhere.
  */
-export const RACK_TILE_SCALE = 0.62;
+export const RACK_TILE_SCALE = 0.68;
 
 export interface BoardScale {
   tileW: number;
