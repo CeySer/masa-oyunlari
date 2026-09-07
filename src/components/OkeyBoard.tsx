@@ -521,7 +521,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     const isPartner = p.id === partnerId;
     // The discarded tile always sits on the side facing the middle of the
     // table, the way it would lie in front of that player in real life.
-    const side = seat === 'left' ? 'flex-row' : seat === 'right' ? 'flex-row-reverse' : 'flex-col';
+    const side = seat === 'right' ? 'flex-row-reverse' : 'flex-row';
 
     return (
       <button
@@ -700,7 +700,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="pointer-events-auto">{renderCentre()}</div>
         </div>
-        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center" style={{ gap: sp(6, 4) }}>
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center" style={{ gap: sp(4, 2) }}>
           {gostermeEligible && (
             <button
               onClick={handleDeclareGosterme}
