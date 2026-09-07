@@ -83,8 +83,6 @@ export function OkeyTile({ tile, size = 'md', scale, selected, dimmed, faceDown,
   } ${
     selected
       ? 'border-red-500 ring-2 ring-red-500/70 -translate-y-1 shadow-xl scale-105'
-      : faceDown
-      ? 'border-amber-900/50 shadow-md'
       : 'border-stone-300/80 shadow-md'
   } ${dimmed ? 'opacity-60' : ''} ${className}`;
 
@@ -92,24 +90,25 @@ export function OkeyTile({ tile, size = 'md', scale, selected, dimmed, faceDown,
     return (
       <div
         className={wrapperClass}
-        title="Echter Okey - umgedreht"
+        title="Zugedeckt"
         style={{
           ...(fluid ? scaledStyle(scale!) : {}),
-          background: 'linear-gradient(160deg, #8a5a2b 0%, #6b4118 55%, #4a2c0f 100%)',
+          background: 'linear-gradient(160deg, #fffaf0 0%, #f5ecd7 55%, #e8dcc0 100%)',
           boxShadow: selected
             ? undefined
-            : 'inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -3px 4px rgba(0,0,0,0.35), 0 2px 3px rgba(0,0,0,0.3)',
+            : 'inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -3px 4px rgba(120,100,60,0.25), 0 2px 3px rgba(0,0,0,0.25)',
         }}
       >
-        <div className="absolute top-0.5 left-1 right-1 h-1/3 rounded-t-md bg-white/10 blur-[1px] pointer-events-none" />
+        <div className="absolute top-0.5 left-1 right-1 h-1/3 rounded-t-md bg-white/50 blur-[1px] pointer-events-none" />
         <span
-          className="relative text-amber-200/60 leading-none"
+          className="relative rounded-full border border-stone-400/50"
           style={{
-            fontSize: fluid ? `calc(var(--tile-w, 42px) * ${scale!} * 0.42)` : undefined,
+            width: fluid ? `calc(var(--tile-w, 42px) * ${scale!} * 0.22)` : '22%',
+            height: fluid ? `calc(var(--tile-w, 42px) * ${scale!} * 0.22)` : '16%',
+            marginTop: '35%',
+            background: 'rgba(180,150,90,0.12)',
           }}
-        >
-          ★
-        </span>
+        />
       </div>
     );
   }

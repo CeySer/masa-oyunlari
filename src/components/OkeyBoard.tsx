@@ -142,6 +142,8 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   // Tile ids currently playing the "just dealt" landing animation, so a
   // fresh hand looks like it's being dealt out rather than just appearing.
   const [dealingTileIds, setDealingTileIds] = useState<Set<number>>(new Set());
+  // Manual flip of a joker in the rack. Missing = default (real okey face-down).
+  const [jokerFlip, setJokerFlip] = useState<Record<number, boolean>>({});
 
   // The whole board sizes itself off the space it actually has (see
   // useBoardScale) instead of breakpoints, so it fits any phone in landscape
@@ -245,6 +247,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
 
     if (isFreshDeal) {
       setRackSlots(computeGroupedSlots(hand as Tile[], publicGameState?.indicator));
+      setJokerFlip({});
       setDealingTileIds(new Set(hand.map((t) => Number(t.id))));
       const timer = setTimeout(() => setDealingTileIds(new Set()), DEAL_ANIM_MS);
       return () => clearTimeout(timer);
@@ -353,7 +356,20 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         setSelectedSlotIndex(slotIdx);
       }
     } else if (selectedSlotIndex === slotIdx) {
-      setSelectedSlotIndex(null);
+      const tile = rackSlots[slotIdx];
+      const ind = publicGameState?.indicator;
+      const isOkey =
+        Boolean(tile) &&
+        (tile!.color === 'fake' ||
+          (ind && tile!.color === ind.color && tile!.value === ((ind.value % 13) + 1)));
+      if (isOkey && tile) {
+        const id = Number(tile.id);
+        const defaultDown = tile.color !== 'fake';
+        const current = id in jokerFlip ? jokerFlip[id] : defaultDown;
+        setJokerFlip((prev) => ({ ...prev, [id]: !current }));
+      } else {
+        setSelectedSlotIndex(null);
+      }
     } else {
       swapSlots(selectedSlotIndex, slotIdx);
       setSelectedSlotIndex(null);
@@ -414,6 +430,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   // shows their name, how many tiles they're holding and the tile they
   // discarded last - at a real table you can see all of that.
   const myIndex = lobby.players.findIndex((p: any) => p.id === socket?.id);
+  const me = myIndex >= 0 ? lobby.players[myIndex] : null;
   const seatCount = lobby.players.length;
   const opponents =
     myIndex === -1
@@ -472,7 +489,16 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         style={isDealing ? { animationDelay: `${(slotIdx % 15) * 25}ms` } : undefined}
       >
         {tile ? (
-          <OkeyTile tile={tile} selected={isSelected} scale={RACK_TILE_SCALE} faceDown={isRealJoker(tile)} />
+          <OkeyTile
+            tile={tile}
+            selected={isSelected}
+            scale={RACK_TILE_SCALE}
+            faceDown={
+              Number(tile.id) in jokerFlip
+                ? jokerFlip[Number(tile.id)]
+                : isRealJoker(tile)
+            }
+          />
         ) : (
           <EmptyOkeyTileSlot index={slotIdx} scale={RACK_TILE_SCALE} />
         )}
@@ -495,7 +521,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     const isPartner = p.id === partnerId;
     // The discarded tile always sits on the side facing the middle of the
     // table, the way it would lie in front of that player in real life.
-    const direction = 'flex-col';
+    const side = seat === 'left' ? 'flex-row' : seat === 'right' ? 'flex-row-reverse' : 'flex-col';
 
     return (
       <button
@@ -503,12 +529,11 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         onClick={takeable ? handleDrawDiscard : undefined}
         disabled={!takeable}
         title={takeable ? `Stein von ${p.name} aufnehmen` : p.name}
-        className={`relative z-10 flex items-center justify-center transition disabled:cursor-default ${direction} ${
+        className={`relative z-10 flex items-center transition disabled:cursor-default ${side} ${
           takeable ? 'cursor-pointer active:scale-[0.97]' : ''
         }`}
-        style={{ gap: sp(3, 2), maxWidth: `calc(var(--tile-w) * 3.2)` }}
+        style={{ gap: sp(6, 4) }}
       >
-        {/* The stone this player just threw onto the table */}
         {reactionFor(p.id) && (
           <span
             className="absolute -top-8 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
@@ -518,54 +543,49 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           </span>
         )}
 
-        <span className="relative flex-shrink-0 leading-none">
-          {discard ? (
-            <OkeyTile tile={discard} scale={RACK_TILE_SCALE} className={takeable ? 'ring-2 ring-emerald-400' : ''} />
-          ) : (
-            <span
-              className="block"
-              style={{
-                width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`,
-                height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})`,
-              }}
-            />
-          )}
-        </span>
-
-        <span className="min-w-0 flex-1 flex flex-col items-start">
+        <span
+          className="flex flex-col min-w-0 rounded-lg"
+          style={{
+            background: 'rgba(8,30,18,0.72)',
+            padding: `${sp(4, 2)} ${sp(8, 5)}`,
+            maxWidth: `calc(var(--tile-w) * 3.6)`,
+            boxShadow: isTheirTurn ? '0 0 0 2px var(--color-accent)' : undefined,
+          }}
+        >
           <span className="flex items-center gap-1 max-w-full">
-            {p.isBot && (
-              <Bot
-                className="flex-shrink-0"
-                style={{ color: 'var(--color-accent)', width: fs(11, 9), height: fs(11, 9) }}
-              />
-            )}
-            {p.away && (
-              <WifiOff className="flex-shrink-0 text-red-400" style={{ width: fs(11, 9), height: fs(11, 9) }} />
-            )}
+            {p.isBot && <Bot className="flex-shrink-0" style={{ color: 'var(--color-accent)', width: fs(11, 9), height: fs(11, 9) }} />}
+            {p.away && <WifiOff className="flex-shrink-0 text-red-400" style={{ width: fs(11, 9), height: fs(11, 9) }} />}
             <span
               className="font-bold truncate leading-tight"
               style={{
-                fontSize: fs(11, 8),
-                color: isTheirTurn ? 'var(--color-accent)' : isPartner ? '#5eead4' : 'var(--color-text)',
+                fontSize: fs(12, 9),
+                color: isPartner ? '#5eead4' : '#f8efda',
                 opacity: p.away ? 0.6 : 1,
-                textShadow: '0 1px 2px rgba(0,0,0,0.45)',
               }}
             >
               {p.name}
             </span>
+            <span className="font-black" style={{ fontSize: fs(12, 9), color: '#e8c56a' }}>
+              {typeof count === 'number' ? count : ''}
+            </span>
           </span>
-          <span
-            className="leading-none"
-            style={{
-              fontSize: fs(9, 7),
-              color: p.away ? '#f87171' : 'var(--color-text-muted)',
-            }}
-          >
-            {p.away ? 'offline' : typeof count === 'number' ? `${count}` : ''}
-          </span>
-          {/* Countdown while it's this player's turn - everyone sees it */}
           {isTheirTurn && renderTurnBar()}
+        </span>
+
+        <span className="relative flex-shrink-0 leading-none">
+          {discard ? (
+            <OkeyTile tile={discard} scale={0.9} className={takeable ? 'ring-2 ring-emerald-400' : ''} />
+          ) : (
+            <span
+              className="block rounded-md"
+              style={{
+                width: `calc(var(--tile-w) * 0.9)`,
+                height: `calc(var(--tile-h) * 0.9)`,
+                border: '2px solid rgba(255,255,255,0.22)',
+                background: 'rgba(0,0,0,0.08)',
+              }}
+            />
+          )}
         </span>
       </button>
     );
@@ -576,50 +596,25 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
   // right next to it - like a real table, no explanatory captions needed.
   // Every tile here shares the rack's own tile unit (RACK_TILE_SCALE) so
   // nothing on the table reads as bigger than what's in hand.
-  const pileRadius = `calc(var(--tile-w) * ${RACK_TILE_SCALE} * 0.18)`;
-  const pileBack = 'linear-gradient(160deg, #8a5a2b 0%, #6b4118 55%, #4a2c0f 100%)';
-
   const renderCentre = () => (
-    <div className="flex items-center justify-center" style={{ gap: sp(12, 6) }}>
+    <div className="flex items-center justify-center" style={{ gap: sp(8, 5) }}>
+      {publicGameState.indicator ? (
+        <OkeyTile tile={publicGameState.indicator} scale={1} />
+      ) : (
+        <span style={{ width: 'var(--tile-w)', height: 'var(--tile-h)' }} />
+      )}
       <button
         onClick={handleDrawPile}
         disabled={!isMyTurn || iHaveDrawn}
         title="Vom Stapel ziehen"
         className="relative flex items-center justify-center transition disabled:opacity-50 active:scale-[0.97]"
-        style={{
-          width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`,
-          height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})`,
-        }}
       >
-        {/* Two tiles peeking out behind - a real stack, not a flat counter */}
-        <span
-          className="absolute inset-0"
-          style={{ transform: 'translate(3px, 3px)', background: pileBack, borderRadius: pileRadius, border: '1px solid rgba(0,0,0,0.35)' }}
+        <OkeyTile
+          tile={{ id: -1, color: 'black', value: publicGameState.pileCount ?? 0 }}
+          scale={1}
+          className={isMyTurn && !iHaveDrawn ? 'ring-2 ring-[var(--color-accent)]' : ''}
         />
-        <span
-          className="absolute inset-0"
-          style={{ transform: 'translate(1.5px, 1.5px)', background: pileBack, borderRadius: pileRadius, border: '1px solid rgba(0,0,0,0.35)' }}
-        />
-        <span
-          className="relative flex items-center justify-center w-full h-full"
-          style={{
-            background: pileBack,
-            borderRadius: pileRadius,
-            border: `2px solid ${isMyTurn && !iHaveDrawn ? 'var(--color-accent)' : 'rgba(0,0,0,0.4)'}`,
-            boxShadow: '0 3px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)',
-          }}
-        >
-          <span className="font-black text-amber-100 leading-none" style={{ fontSize: fs(13, 9) }}>
-            {publicGameState.pileCount}
-          </span>
-        </span>
       </button>
-
-      {publicGameState.indicator ? (
-        <OkeyTile tile={publicGameState.indicator} scale={RACK_TILE_SCALE} />
-      ) : (
-        <span style={{ width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`, height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})` }} />
-      )}
     </div>
   );
 
@@ -635,38 +630,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
 
   const renderActions = () => (
     <div className="relative z-20 flex flex-col items-center" style={{ gap: sp(5, 3) }}>
-      {gostermeEligible && (
-        <button
-          onClick={handleDeclareGosterme}
-          className="rounded-xl font-bold shadow transition flex items-center justify-center animate-pulse whitespace-nowrap"
-          style={{ ...btnStyle, background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
-        >
-          <Sparkles style={iconSize} />
-          <span>Gösterme zeigen</span>
-        </button>
-      )}
-
       <div className="flex items-end" style={{ gap: sp(8, 5) }}>
-        <div
-          onDragOver={handleDragOver}
-          onDrop={handleDropDiscardZone}
-          onClick={() => {
-            if (selectedTile && isMyTurn && iHaveDrawn) handleDiscard();
-          }}
-          title="Ablegen"
-          className={`flex items-center justify-center transition ${
-            isMyTurn && iHaveDrawn ? 'cursor-pointer' : ''
-          }`}
-          style={{
-            width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`,
-            height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})`,
-            outline: isMyTurn && iHaveDrawn ? '2px dashed #ef4444' : undefined,
-            outlineOffset: '2px',
-            borderRadius: 4,
-          }}
-        >
-          {myTopDiscard && <OkeyTile tile={myTopDiscard} scale={RACK_TILE_SCALE} />}
-        </div>
         <div className="relative">
           <button
             onClick={() => setReactionPickerOpen((o) => !o)}
@@ -710,55 +674,58 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     <div
       ref={rootRef}
       className="flex flex-col flex-1 min-h-0 overflow-hidden"
-      style={{ ...(vars as CSSProperties), gap: sp(6, 4) }}
+      style={{ ...(vars as CSSProperties) }}
     >
-      {/* ---------- THE TABLE ---------- */}
-      {/* A real Okey board doesn't stretch edge to edge on a big screen or a
-          TV - it sits on a table with room around it, and that room stays
-          the same green as the felt so it still reads as "a board on a
-          table", not a stretched-out rectangle. The wood frame between the
-          green surround and the felt is a real wooden board's own edge: a
-          darker frame with a beveled highlight/shadow on opposite corners,
-          like a mitred wooden edge catching the light. */}
-      <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
-        <div
-          className="rounded-sm"
-          style={{
-            width: `min(100%, calc(var(--tile-w) * ${RACK_TILE_SCALE} * 15 + var(--tile-gap) * ${RACK_TILE_SCALE} * 14 + 40px))`,
-            background: 'linear-gradient(160deg, #7a4e26 0%, #5c3b1a 55%, #402910 100%)',
-            boxShadow:
-              'inset 2px 2px 0 rgba(255,255,255,0.14), inset -2px -2px 0 rgba(0,0,0,0.45), 0 6px 14px rgba(0,0,0,0.35)',
-            padding: sp(12, 7),
-          }}
-        >
-          <div
-            className="grid w-full rounded-sm shadow-inner overflow-hidden"
-            style={{
-              background: 'var(--table-felt)',
-              border: '2px solid var(--table-edge)',
-              padding: sp(6, 4),
-              gap: sp(8, 5),
-              gridTemplateColumns: 'auto minmax(0, 1fr) auto',
-              gridTemplateRows: 'auto auto auto',
-            }}
-          >
-            <div className="col-start-2 row-start-1 flex items-start justify-center">
-              {renderOpponent(seats.top, 'top')}
-            </div>
-
-            <div className="col-start-1 row-start-2 flex items-center justify-start">
-              {renderOpponent(seats.left, 'left')}
-            </div>
-
-            <div className="col-start-2 row-start-2 flex items-center justify-center">{renderCentre()}</div>
-
-            <div className="col-start-3 row-start-2 flex items-center justify-end">
-              {renderOpponent(seats.right, 'right')}
-            </div>
-
-            <div className="col-start-1 col-span-3 row-start-3 flex items-end justify-center">{renderActions()}</div>
-          </div>
+      <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">{renderOpponent(seats.top, 'top')}</div>
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">{renderOpponent(seats.left, 'left')}</div>
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{renderOpponent(seats.right, 'right')}</div>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="pointer-events-auto">{renderCentre()}</div>
         </div>
+        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center" style={{ gap: sp(6, 4) }}>
+          {gostermeEligible && (
+            <button
+              onClick={handleDeclareGosterme}
+              className="rounded-xl font-bold shadow flex items-center animate-pulse"
+              style={{ ...btnStyle, background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
+            >
+              <Sparkles style={iconSize} />
+              <span>Gösterme zeigen</span>
+            </button>
+          )}
+          {me && (
+            <div className="flex items-center" style={{ gap: sp(8, 5) }}>
+              <span
+                className="flex items-center rounded-lg"
+                style={{ background: 'rgba(8,30,18,0.72)', padding: `${sp(4, 2)} ${sp(8, 5)}`, gap: sp(6, 4) }}
+              >
+                <span className="font-bold" style={{ fontSize: fs(12, 9), color: '#f8efda' }}>{me.name}</span>
+                <span className="font-black" style={{ fontSize: fs(12, 9), color: '#e8c56a' }}>{hand.length}</span>
+              </span>
+              <div
+                onDragOver={handleDragOver}
+                onDrop={handleDropDiscardZone}
+                onClick={() => {
+                  if (selectedTile && isMyTurn && iHaveDrawn) handleDiscard();
+                }}
+                title="Ablegen"
+                className={`flex items-center justify-center ${isMyTurn && iHaveDrawn ? 'cursor-pointer' : ''}`}
+                style={{
+                  width: `calc(var(--tile-w) * 0.9)`,
+                  height: `calc(var(--tile-h) * 0.9)`,
+                  outline: isMyTurn && iHaveDrawn ? '2px dashed #ef4444' : undefined,
+                  outlineOffset: '2px',
+                  borderRadius: 6,
+                  border: myTopDiscard ? undefined : '2px solid rgba(255,255,255,0.22)',
+                }}
+              >
+                {myTopDiscard && <OkeyTile tile={myTopDiscard} scale={0.9} />}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="absolute bottom-2 right-2 z-10">{renderActions()}</div>
       </div>
 
       {/* ---------- ISTAKA (the wooden rack) ---------- */}
