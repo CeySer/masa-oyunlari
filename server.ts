@@ -142,6 +142,9 @@ interface Player {
   // the tiles and the score all stay exactly as they are - a bot merely
   // covers this player's turns until they come back (see armTurnTimer).
   away?: boolean;
+  // Real name of a human whose seat a stand-in bot is covering after they
+  // left mid-hand. Used to give the seat back without renaming a real bot.
+  humanName?: string;
 }
 
 const OKEY_STARTING_SCORE = 20;
@@ -182,6 +185,7 @@ interface Lobby {
   // 'next_round' refuses to deal again. See declare_win.
   matchOver?: boolean;
   dealId?: number;
+  paused?: boolean;
   // Okey only: whether the traditional 20-point match scoring applies at
   // all. When false (a casual "just play hands" lobby, chosen at creation),
   // winning a hand never costs anyone points and the match never ends on
@@ -224,6 +228,27 @@ function chargeLosers(lobby: Lobby, winnerId: string, points: number) {
  * just thrown away happens to complete the hand ("Okey über Stein werfen" -
  * no separate button needed, throwing the winning tile away IS the win).
  */
+function orderHandByRack(tiles: OkeyTile[], rackOrder?: unknown): OkeyTile[] {
+  if (!Array.isArray(rackOrder) || rackOrder.length === 0) return tiles;
+  const byId = new Map(tiles.map((t) => [Number(t.id), t]));
+  const used = new Set<number>();
+  const ordered: OkeyTile[] = [];
+  for (const raw of rackOrder) {
+    if (raw == null) continue;
+    const id = Number(raw);
+    if (!Number.isFinite(id) || used.has(id)) continue;
+    const tile = byId.get(id);
+    if (tile) {
+      ordered.push(tile);
+      used.add(id);
+    }
+  }
+  for (const tile of tiles) {
+    if (!used.has(Number(tile.id))) ordered.push(tile);
+  }
+  return ordered;
+}
+
 function finishHandWithWin(
   lobby: Lobby,
   lobbyId: string,
@@ -481,6 +506,7 @@ function initOkeyGame(lobby: Lobby) {
     gostermeDeclared: {} as Record<string, boolean>,
   };
   lobby.status = 'playing';
+  lobby.paused = false;
   lobby.dealId = (lobby.dealId || 0) + 1;
 
   addLog(lobby, `🎮 Spiel gestartet! ${players[firstPlayerIndex].name} ist am Zug.`);
@@ -599,7 +625,7 @@ function armTurnTimer(lobby: Lobby) {
     }
   };
 
-  if (!gs || lobby.status !== 'playing' || lobby.gameType !== 'okey') return stop();
+  if (!gs || lobby.status !== 'playing' || lobby.gameType !== 'okey' || lobby.paused) return stop();
 
   const current = lobby.players[gs.turnIndex];
   // Bots already move on their own timer, no countdown needed for them.
@@ -662,7 +688,7 @@ function onTurnTimeout(lobby: Lobby, armedFor: number) {
 
 // BOT AI CONTROLLER
 function checkAndTriggerBotTurn(lobby: Lobby) {
-  if (lobby.status !== 'playing' || !lobby.gameState) return;
+  if (lobby.status !== 'playing' || !lobby.gameState || lobby.paused) return;
   const gs = lobby.gameState;
   const turnWhenQueued = gs.turnIndex;
   const currentPlayer = lobby.players[turnWhenQueued];
@@ -753,7 +779,7 @@ function shouldTakeDiscard(topDiscard: OkeyTile, hand: OkeyTile[], difficulty: '
 
 function executeOkeyBotTurn(lobby: Lobby, botPlayer: Player) {
   const gs = lobby.gameState;
-  if (!gs || lobby.status !== 'playing') return;
+  if (!gs || lobby.status !== 'playing' || lobby.paused) return;
   if (lobby.players[gs.turnIndex]?.id !== botPlayer.id) return;
   if (!gs.hands[botPlayer.id]) {
     gs.hands[botPlayer.id] = [];
@@ -818,7 +844,7 @@ function executeOkeyBotTurn(lobby: Lobby, botPlayer: Player) {
 
 function executeOkeyBotDiscard(lobby: Lobby, botPlayer: Player) {
   const gs = lobby.gameState;
-  if (!gs || lobby.status !== 'playing') return;
+  if (!gs || lobby.status !== 'playing' || lobby.paused) return;
   if (lobby.players[gs.turnIndex]?.id !== botPlayer.id) return;
   const hand = gs.hands[botPlayer.id];
   if (!hand || hand.length < 15) {
@@ -1274,8 +1300,8 @@ io.on('connection', (socket) => {
       let existingPlayer = lobby.players.find(p =>
         (profile && p.profileId === profile.id) ||
         p.id === socket.id ||
-        p.name === playerName ||
-        p.name === `${playerName} (Bot)`
+        p.humanName === playerName ||
+        (!p.isBot && p.name === playerName)
       );
       if (existingPlayer) {
         const oldId = existingPlayer.id;
@@ -1329,13 +1355,11 @@ io.on('connection', (socket) => {
 
       // Back from being offline or from a seat the table had turned into a
       // stand-in bot: this is a human again, same name, same tiles.
-      if (existingPlayer.away || existingPlayer.isBot) {
+      if (existingPlayer.away || existingPlayer.humanName || (existingPlayer.isBot && existingPlayer.profileId)) {
         existingPlayer.away = false;
         existingPlayer.isBot = false;
-        if (existingPlayer.name.endsWith(' (Bot)')) {
-          existingPlayer.name = existingPlayer.name.replace(/ \(Bot\)$/, '');
-        }
-        if (playerName) existingPlayer.name = playerName;
+        existingPlayer.name = playerName || existingPlayer.humanName || existingPlayer.name.replace(/ \(Bot\)$/, '');
+        delete existingPlayer.humanName;
         if (lobby.status === 'playing') {
           addLog(lobby, `🔌 ${existingPlayer.name} ist wieder da und spielt weiter.`);
         }
@@ -1399,12 +1423,19 @@ io.on('connection', (socket) => {
       const leavingPlayer = lobby.players[playerIdx];
 
       if (lobby.status === 'playing') {
-        leavingPlayer.away = true;
-        leavingPlayer.isBot = false;
-        addLog(lobby, `🚪 ${leavingPlayer.name} ist weg - der Computer übernimmt so lange.`);
+        const reserved = new Set(lobby.players.map((p) => p.name));
+        const standIn = ['Bot Can', 'Bot Elif', 'Bot Mehmet', 'Bot Zeynep', 'Bot Deniz', 'Bot Ayse']
+          .find((n) => !reserved.has(n)) || `Bot ${playerIdx + 1}`;
+        leavingPlayer.humanName = leavingPlayer.name;
+        leavingPlayer.name = standIn;
+        leavingPlayer.isBot = true;
+        leavingPlayer.away = false;
+        lobby.paused = false;
+        addLog(lobby, `🚪 ${leavingPlayer.humanName} hat verlassen - ${standIn} übernimmt.`);
 
         broadcastGameState(lobby);
         io.to(lobbyId).emit('lobby_updated', lobby);
+        checkAndTriggerBotTurn(lobby);
       } else {
         lobby.players.splice(playerIdx, 1);
         io.to(lobbyId).emit('lobby_updated', lobby);
@@ -1489,7 +1520,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('discard_tile', ({ lobbyId, tileId }) => {
+  socket.on('discard_tile', ({ lobbyId, tileId, rackOrder }) => {
     const lobby = lobbies.get(lobbyId);
     if (!lobby || lobby.status !== 'playing' || lobby.gameType !== 'okey') return;
 
@@ -1518,7 +1549,7 @@ io.on('connection', (socket) => {
     const tile = hand.splice(tileIdx, 1)[0];
 
     if (winType) {
-      finishHandWithWin(lobby, lobbyId, currentPlayer, tile, winType, rest14);
+      finishHandWithWin(lobby, lobbyId, currentPlayer, tile, winType, orderHandByRack(rest14, rackOrder));
       return;
     }
 
@@ -1540,7 +1571,7 @@ io.on('connection', (socket) => {
     checkAndTriggerBotTurn(lobby);
   });
 
-  socket.on('declare_win', ({ lobbyId }) => {
+  socket.on('declare_win', ({ lobbyId, rackOrder }) => {
     const lobby = lobbies.get(lobbyId);
     if (!lobby || lobby.status !== 'playing' || lobby.gameType !== 'okey') return;
 
@@ -1565,7 +1596,7 @@ io.on('connection', (socket) => {
     const rest14 = idx === -1 ? [...hand] : [...hand.slice(0, idx), ...hand.slice(idx + 1)];
     if (idx !== -1) hand.splice(idx, 1);
 
-    finishHandWithWin(lobby, lobbyId, winner, winningDiscard, winType, rest14);
+    finishHandWithWin(lobby, lobbyId, winner, winningDiscard, winType, orderHandByRack(rest14, rackOrder));
   });
 
   // Throwing a reaction stone onto the table. Only ids from the fixed list
@@ -1598,6 +1629,26 @@ io.on('connection', (socket) => {
       }
     });
     initOkeyGame(lobby);
+  });
+
+  socket.on('toggle_pause', ({ lobbyId }) => {
+    const lobby = lobbies.get(lobbyId);
+    if (!lobby || lobby.status !== 'playing' || lobby.gameType !== 'okey') return;
+    const humans = lobby.players.filter((p) => !p.isBot && !p.away).length;
+    if (humans !== 1) return;
+    const player = lobby.players.find((p) => p.id === socket.id);
+    if (!player || player.isBot) return;
+    lobby.paused = !lobby.paused;
+    if (lobby.paused) {
+      addLog(lobby, '⏸️ Pause');
+      io.to(lobbyId).emit('lobby_updated', lobby);
+      broadcastGameState(lobby);
+    } else {
+      addLog(lobby, '▶️ Weiter');
+      io.to(lobbyId).emit('lobby_updated', lobby);
+      broadcastGameState(lobby);
+      checkAndTriggerBotTurn(lobby);
+    }
   });
 
   // "Gösterme": if a player was dealt a tile identical to the gösterge
