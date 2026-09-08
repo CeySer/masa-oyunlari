@@ -99,6 +99,7 @@ interface PlayerProfile {
   ownerUid: string;
   name: string;
   color: string;
+  avatar?: string;
   elo: number;
   wins: number;
   losses: number;
@@ -138,6 +139,8 @@ interface Player {
   score: number;
   elo: number;
   profileId?: string;
+  avatar?: string;
+  color?: string;
   // Connection dropped (closed tab, WiFi gone, phone asleep). The seat,
   // the tiles and the score all stay exactly as they are - a bot merely
   // covers this player's turns until they come back (see armTurnTimer).
@@ -1036,7 +1039,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('create_profile', async ({ idToken, name, color }, callback) => {
+  socket.on('create_profile', async ({ idToken, name, color, avatar }, callback) => {
     if (!callback) return;
     if (!firebaseAdminEnabled || !db) {
       callback({ success: false, error: 'Konten sind auf diesem Server nicht eingerichtet.' });
@@ -1069,6 +1072,7 @@ io.on('connection', (socket) => {
         ownerUid: verified.uid,
         name: trimmedName,
         color: typeof color === 'string' && color ? color : '#d4a24e',
+        avatar: typeof avatar === 'string' ? avatar.slice(0, 16) : 'cay',
         elo: 1200,
         wins: 0,
         losses: 0,
@@ -1085,7 +1089,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('update_profile', async ({ idToken, profileId, name, color }, callback) => {
+  socket.on('update_profile', async ({ idToken, profileId, name, color, avatar }, callback) => {
     if (!callback) return;
     if (!firebaseAdminEnabled || !db) {
       callback({ success: false, error: 'Konten sind auf diesem Server nicht eingerichtet.' });
@@ -1104,6 +1108,7 @@ io.on('connection', (socket) => {
     const update: Partial<PlayerProfile> = {};
     if (typeof name === 'string' && name.trim()) update.name = name.trim().slice(0, 24);
     if (typeof color === 'string' && color) update.color = color;
+    if (typeof avatar === 'string' && avatar) update.avatar = avatar.slice(0, 16);
 
     if (update.name && update.name.toLowerCase() !== profile.name.toLowerCase()) {
       const existing = await db.collection('profiles').where('ownerUid', '==', verified.uid).get();
@@ -1349,6 +1354,8 @@ io.on('connection', (socket) => {
           score: OKEY_STARTING_SCORE,
           elo: profile?.elo || 1200,
           profileId: profile?.id,
+          avatar: profile?.avatar,
+          color: profile?.color,
         };
         lobby.players.push(existingPlayer);
       }
@@ -1360,6 +1367,8 @@ io.on('connection', (socket) => {
         existingPlayer.isBot = false;
         existingPlayer.name = playerName || existingPlayer.humanName || existingPlayer.name.replace(/ \(Bot\)$/, '');
         delete existingPlayer.humanName;
+        if (profile?.avatar) existingPlayer.avatar = profile.avatar;
+        if (profile?.color) existingPlayer.color = profile.color;
         if (lobby.status === 'playing') {
           addLog(lobby, `🔌 ${existingPlayer.name} ist wieder da und spielt weiter.`);
         }
@@ -1389,12 +1398,14 @@ io.on('connection', (socket) => {
     const usedNames = new Set(lobby.players.map(p => p.name));
     const availableName = botNames.find(n => !usedNames.has(n)) || `Bot ${lobby.players.length + 1}`;
 
+    const botAvatars = ['zar', 'kus', 'balik', 'lale', 'fener', 'tac'];
     const botPlayer: Player = {
       id: `bot_${Math.random().toString(36).substring(2, 7)}`,
       name: availableName,
       isBot: true,
       score: OKEY_STARTING_SCORE,
       elo: 1000,
+      avatar: botAvatars[lobby.players.length % botAvatars.length],
     };
 
     lobby.players.push(botPlayer);
@@ -1463,12 +1474,14 @@ io.on('connection', (socket) => {
     while (lobby.players.length < maxRequired) {
       const usedNames = new Set(lobby.players.map(p => p.name));
       const name = botNames.find(n => !usedNames.has(n)) || `Bot ${lobby.players.length + 1}`;
+      const botAvatars = ['zar', 'kus', 'balik', 'lale', 'fener', 'tac'];
       lobby.players.push({
         id: `bot_${Math.random().toString(36).substring(2, 7)}`,
         name,
         isBot: true,
         score: OKEY_STARTING_SCORE,
         elo: 1000,
+        avatar: botAvatars[lobby.players.length % botAvatars.length],
       });
     }
 
