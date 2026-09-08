@@ -46,13 +46,8 @@ export default function Login() {
             note above) - a clickable logo here would just bounce back to
             this same page, which is confusing, not a shortcut. */}
         <div className="flex items-center gap-2">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm text-white"
-            style={{ background: 'linear-gradient(145deg, var(--color-cta-from), var(--color-cta-to))' }}
-          >
-            M
-          </div>
-          <span className="font-black text-sm">Masa Oyunları</span>
+          <img src="/icon-mark.png" alt="" className="w-8 h-8 rounded-lg object-cover" />
+          <span className="font-display text-lg font-bold" style={{ color: 'var(--color-accent)' }}>Masa Oyunları</span>
         </div>
       </header>
 

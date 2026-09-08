@@ -11,11 +11,11 @@ export interface OkeyTileData {
 }
 
 const NUMERAL_COLOR: Record<string, string> = {
-  red: 'text-red-600',
-  black: 'text-neutral-900',
-  blue: 'text-blue-700',
-  yellow: 'text-yellow-600',
-  fake: 'text-red-600',
+  red: 'text-[#b42318]',
+  black: 'text-[#1a1a1a]',
+  blue: 'text-[#1d4ed8]',
+  yellow: 'text-[#b45309]',
+  fake: 'text-[#b8860b]',
 };
 
 export function tileNumeralColorClass(color: string): string {
@@ -93,20 +93,22 @@ export function OkeyTile({ tile, size = 'md', scale, selected, dimmed, faceDown,
         title="Zugedeckt"
         style={{
           ...(fluid ? scaledStyle(scale!) : {}),
-          background: 'linear-gradient(160deg, #fffaf0 0%, #f5ecd7 55%, #e8dcc0 100%)',
+          background: 'linear-gradient(165deg, #fffdf6 0%, #f4ead4 48%, #e4d4b4 100%)',
           boxShadow: selected
             ? undefined
-            : 'inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -3px 4px rgba(120,100,60,0.25), 0 2px 3px rgba(0,0,0,0.25)',
+            : 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -4px 6px rgba(90,70,30,0.22), 0 3px 5px rgba(0,0,0,0.28)',
         }}
       >
-        <div className="absolute top-0.5 left-1 right-1 h-1/3 rounded-t-md bg-white/50 blur-[1px] pointer-events-none" />
+        <div className="absolute top-0.5 left-1 right-1 h-1/3 rounded-t-md bg-white/45 blur-[1px] pointer-events-none" />
         <span
-          className="relative rounded-full border border-stone-400/50"
+          className="relative"
           style={{
-            width: fluid ? `calc(var(--tile-w, 42px) * ${scale!} * 0.22)` : '22%',
-            height: fluid ? `calc(var(--tile-w, 42px) * ${scale!} * 0.22)` : '16%',
-            marginTop: '35%',
-            background: 'rgba(180,150,90,0.12)',
+            width: fluid ? `calc(var(--tile-w, 42px) * ${scale!} * 0.34)` : '28%',
+            height: fluid ? `calc(var(--tile-w, 42px) * ${scale!} * 0.34)` : '20%',
+            marginTop: '28%',
+            background: 'radial-gradient(circle, #d4b56a 0%, #8a6428 70%)',
+            clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)',
+            opacity: 0.55,
           }}
         />
       </div>
@@ -118,14 +120,13 @@ export function OkeyTile({ tile, size = 'md', scale, selected, dimmed, faceDown,
       className={wrapperClass}
       style={{
         ...(fluid ? scaledStyle(scale!) : {}),
-        background: 'linear-gradient(160deg, #fffaf0 0%, #f5ecd7 55%, #e8dcc0 100%)',
+        background: 'linear-gradient(165deg, #fffdf6 0%, #f4ead4 48%, #e4d4b4 100%)',
         boxShadow: selected
           ? undefined
-          : 'inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -3px 4px rgba(120,100,60,0.25), 0 2px 3px rgba(0,0,0,0.25)',
+          : 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -4px 6px rgba(90,70,30,0.22), 0 3px 5px rgba(0,0,0,0.28)',
       }}
     >
-      {/* Top glossy highlight strip, like a rounded bone/melamine surface */}
-      <div className="absolute top-0.5 left-1 right-1 h-1/3 rounded-t-md bg-white/50 blur-[1px] pointer-events-none" />
+      <div className="absolute top-0.5 left-1 right-1 h-1/3 rounded-t-md bg-white/45 blur-[1px] pointer-events-none" />
 
       <span
         className={`relative font-black tracking-tight leading-none drop-shadow-sm ${

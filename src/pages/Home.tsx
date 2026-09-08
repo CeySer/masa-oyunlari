@@ -128,8 +128,8 @@ export default function Home() {
             style={{ boxShadow: '0 6px 16px -6px rgba(0,0,0,0.45)' }}
           />
           <div className="min-w-0">
-            <h1 className="text-xl font-black tracking-tight leading-tight truncate">Masa Oyunları</h1>
-            <p className="text-xs text-[var(--color-text-muted)] truncate">Klasik Türk Oyun Platformu</p>
+            <h1 className="font-display text-2xl font-bold leading-tight truncate" style={{ color: 'var(--color-accent)' }}>Masa Oyunları</h1>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] truncate">Der Familientisch</p>
           </div>
         </button>
 
@@ -255,6 +255,9 @@ export default function Home() {
             />
 
             <div className="relative space-y-7">
+              <div className="flex flex-col items-center text-center pt-1 pb-1">
+                <img src="/logo.png" alt="Masa Oyunları" className="w-[min(100%,280px)] object-contain drop-shadow-lg" />
+              </div>
               {/* A family member on this same account just opened a lobby -
                   jump straight in, no code needed. */}
               {openAccountLobby && (

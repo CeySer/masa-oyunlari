@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap');
 
 /* ============================================================
    THEME SYSTEM
@@ -17,33 +18,36 @@
 
 :root,
 [data-theme='klassik'] {
-  --color-bg: #0c4c2e;
-  --color-surface: #0a4228;
-  --color-surface-2: #0f5735;
-  --color-surface-3: #156b43;
-  --color-border: #06381f;
-  --color-border-strong: #8a5a2b;
-  --color-text: #f8efda;
-  --color-text-muted: #b3cfbe;
-  --color-accent: #e8c56a;
-  --color-accent-strong: #f5d888;
-  --color-accent-contrast: #0a4228;
-  --color-cta-from: #a9762f;
-  --color-cta-to: #7d5320;
-  --color-cta-hover-from: #c08a3c;
-  --color-cta-hover-to: #93632a;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-ui: 'Source Sans 3', system-ui, sans-serif;
+  --color-bg: #0a2f20;
+  --color-surface: #0c3524;
+  --color-surface-2: #12402c;
+  --color-surface-3: #185338;
+  --color-border: #072418;
+  --color-border-strong: #6b4a22;
+  --color-text: #f3ead4;
+  --color-text-muted: #b7c7b6;
+  --color-accent: #d4b56a;
+  --color-accent-strong: #ebcf8a;
+  --color-accent-contrast: #1a1208;
+  --color-cta-from: #c4a05a;
+  --color-cta-to: #8a6428;
+  --color-cta-hover-from: #d4b56a;
+  --color-cta-hover-to: #9a7434;
 
-  /* Playing surface */
-  --table-felt: radial-gradient(circle at 50% 38%, #16724a 0%, #0c4c2e 62%, #073a22 100%);
-  --table-edge: #06381f;
-  --rack-wood: linear-gradient(180deg, #8b5a2b 0%, #6d4520 55%, #543616 100%);
-  --rack-wood-edge: #422a11;
-  --slot-empty: rgba(0, 0, 0, 0.22);
-  --slot-empty-border: rgba(255, 236, 200, 0.18);
-  --table-inset: rgba(0, 0, 0, 0.22);
+  --table-felt: radial-gradient(ellipse at 50% 36%, #1a5c3c 0%, #0e3a26 52%, #071f15 100%);
+  --table-edge: #071f15;
+  --rack-wood: linear-gradient(180deg, #7a4e26 0%, #5c3b1a 48%, #3d2610 100%);
+  --rack-wood-edge: #2a180a;
+  --slot-empty: rgba(0, 0, 0, 0.28);
+  --slot-empty-border: rgba(232, 210, 160, 0.14);
+  --table-inset: rgba(0, 0, 0, 0.28);
 }
 
 [data-theme='modern-dark'] {
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-ui: 'Source Sans 3', system-ui, sans-serif;
   --color-bg: #0b1220;
   --color-surface: #151f30;
   --color-surface-2: #1f2c42;
@@ -71,6 +75,8 @@
 }
 
 [data-theme='light'] {
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-ui: 'Source Sans 3', system-ui, sans-serif;
   --color-bg: #f4f7fa;
   --color-surface: #ffffff;
   --color-surface-2: #eef2f6;
@@ -96,16 +102,26 @@
   --table-inset: rgba(16, 24, 40, 0.05);
 }
 
+html, body, #root {
+  font-family: var(--font-ui, 'Source Sans 3', system-ui, sans-serif);
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);
 }
 
+.font-display {
+  font-family: var(--font-display, Georgia, serif);
+  letter-spacing: 0.01em;
+}
+
 /* Klassik only: a faint woven texture over the felt, like a real card table */
 [data-theme='klassik'] body {
   background-image:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 4px),
-    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.025) 0 2px, transparent 2px 4px);
+    radial-gradient(ellipse at 50% -8%, rgba(212, 181, 106, 0.09), transparent 46%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.04) 0 2px, transparent 2px 5px);
 }
 
 /* Slow drifting/rotating motion for the decorative Okey tiles on the login

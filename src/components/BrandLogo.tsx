@@ -23,7 +23,7 @@ export default function BrandLogo({ subtitle, compact = false }: BrandLogoProps)
         style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }}
       />
       <div className="min-w-0">
-        <div className="font-black text-sm leading-tight truncate">Masa Oyunları</div>
+        <div className="font-display font-bold text-[15px] leading-tight truncate" style={{ color: 'var(--color-accent)' }}>Masa Oyunları</div>
         {subtitle && <div className="text-xs text-[var(--color-text-muted)] truncate">{subtitle}</div>}
       </div>
     </button>
