@@ -12,6 +12,7 @@ import TV from './pages/TV';
 import Login from './pages/Login';
 import Profiles from './pages/Profiles';
 import ToastHost from './components/ToastHost';
+import Splash from './components/Splash';
 import ConfirmHost from './components/ConfirmHost';
 import { useEffect } from 'react';
 import { useGameStore } from './store/gameStore';
@@ -132,6 +133,7 @@ export default function App() {
           />
           <Route path="/tv/:id?" element={<TV />} />
         </Routes>
+        <Splash />
         <ToastHost />
         <ConfirmHost />
       </div>

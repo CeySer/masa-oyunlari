@@ -161,15 +161,7 @@ export function EmptyOkeyTileSlot({ index, size = 'md', scale, className = '' }:
         borderColor: 'var(--slot-empty-border)',
       }}
     >
-      <span
-        className="font-mono opacity-40 leading-none"
-        style={{
-          color: 'var(--color-text)',
-          fontSize: fluid ? `max(7px, calc(var(--tile-w, 42px) * ${scale!} * 0.22))` : '8px',
-        }}
-      >
-        {index + 1}
-      </span>
+      {null}
     </div>
   );
 }

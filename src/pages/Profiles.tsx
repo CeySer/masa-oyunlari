@@ -60,12 +60,7 @@ export default function Profiles() {
     >
       <header className="max-w-2xl w-full mx-auto flex items-center justify-between py-4 border-b border-[var(--color-border)]">
         <button onClick={() => navigate('/')} className="flex items-center gap-2 text-left">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm text-white"
-            style={{ background: 'linear-gradient(145deg, var(--color-cta-from), var(--color-cta-to))' }}
-          >
-            M
-          </div>
+          <img src="/icon-mark.png" alt="" className="w-9 h-9 rounded-xl object-cover" />
           <div>
             <div className="font-black text-sm leading-tight">Wer spielt mit?</div>
             <div className="text-xs text-[var(--color-text-muted)] max-w-[14rem] truncate">{user?.email}</div>

@@ -121,16 +121,12 @@ export default function Home() {
       {/* Top Bar */}
       <header className="max-w-4xl w-full mx-auto flex items-center justify-between flex-wrap gap-y-2 py-4 border-b border-[var(--color-border)]">
         <button onClick={() => navigate('/')} className="flex items-center gap-3 text-left min-w-0">
-          <div
-            className="w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xl text-white flex-shrink-0"
-            style={{
-              background: 'linear-gradient(145deg, var(--color-cta-from), var(--color-cta-to))',
-              boxShadow:
-                'inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 16px -6px color-mix(in srgb, var(--color-cta-to) 70%, transparent)',
-            }}
-          >
-            M
-          </div>
+          <img
+            src="/icon-mark.png"
+            alt=""
+            className="w-11 h-11 rounded-2xl flex-shrink-0 object-cover"
+            style={{ boxShadow: '0 6px 16px -6px rgba(0,0,0,0.45)' }}
+          />
           <div className="min-w-0">
             <h1 className="text-xl font-black tracking-tight leading-tight truncate">Masa Oyunları</h1>
             <p className="text-xs text-[var(--color-text-muted)] truncate">Klasik Türk Oyun Platformu</p>

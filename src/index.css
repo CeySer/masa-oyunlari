@@ -157,3 +157,13 @@ body {
 .animate-tile-deal {
   animation: tile-deal 420ms cubic-bezier(.2,1,.4,1) both;
 }
+
+@keyframes masa-splash-in {
+  0% { transform: scale(0.55) rotate(-8deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes masa-splash-up {
+  0% { transform: translateY(18px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}

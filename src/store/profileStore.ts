@@ -11,6 +11,7 @@ export interface PlayerProfile {
   id: string;
   name: string;
   color: string;
+  avatar?: string;
   elo: number;
   wins: number;
   losses: number;
@@ -31,8 +32,8 @@ interface ProfileState {
   profilesReady: boolean;
   profilesError: string | null;
   loadProfiles: () => void;
-  createProfile: (name: string, color: string) => Promise<{ success: boolean; error?: string }>;
-  updateProfile: (id: string, patch: { name?: string; color?: string }) => Promise<{ success: boolean; error?: string }>;
+  createProfile: (name: string, color: string, avatar?: string) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (id: string, patch: { name?: string; color?: string; avatar?: string }) => Promise<{ success: boolean; error?: string }>;
   deleteProfile: (id: string) => Promise<{ success: boolean; error?: string }>;
   selectProfile: (profile: PlayerProfile) => void;
   clearActiveProfile: () => void;
@@ -67,7 +68,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     });
   },
 
-  createProfile: (name, color) => {
+  createProfile: (name, color, avatar) => {
     return new Promise((resolve) => {
       const socket = useGameStore.getState().socket;
       useAuthStore.getState().getIdToken().then((idToken) => {
@@ -75,7 +76,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
           resolve({ success: false, error: 'Nicht angemeldet.' });
           return;
         }
-        socket.emit('create_profile', { idToken, name, color }, (res: any) => {
+        socket.emit('create_profile', { idToken, name, color, avatar }, (res: any) => {
           if (res.success) {
             set((s) => ({ profiles: [...s.profiles, res.profile] }));
             resolve({ success: true });

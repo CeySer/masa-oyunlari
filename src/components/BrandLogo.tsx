@@ -16,12 +16,12 @@ export default function BrandLogo({ subtitle, compact = false }: BrandLogoProps)
       title="Zum Hauptmenü"
       className="flex items-center gap-2 text-left min-w-0"
     >
-      <div
-        className={`${compact ? 'w-8 h-8 text-sm rounded-lg' : 'w-9 h-9 text-sm rounded-xl'} flex items-center justify-center font-black text-white flex-shrink-0`}
-        style={{ background: 'linear-gradient(145deg, var(--color-cta-from), var(--color-cta-to))' }}
-      >
-        M
-      </div>
+      <img
+        src="/icon-mark.png"
+        alt=""
+        className={`${compact ? 'w-8 h-8 rounded-lg' : 'w-9 h-9 rounded-xl'} flex-shrink-0 object-cover`}
+        style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }}
+      />
       <div className="min-w-0">
         <div className="font-black text-sm leading-tight truncate">Masa Oyunları</div>
         {subtitle && <div className="text-xs text-[var(--color-text-muted)] truncate">{subtitle}</div>}
