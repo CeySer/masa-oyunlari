@@ -17,7 +17,7 @@ import { Bot, Trophy, RefreshCw, Menu } from 'lucide-react';
 export default function Game() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { socket, lobby, publicGameState, player, gameResult, clearGameResult, setPlayer } = useGameStore();
+  const { socket, lobby, publicGameState, player, gameResult, clearGameResult, setPlayer, setLobby, setPublicGameState, setHand } = useGameStore();
   const { authReady, getIdToken } = useAuthStore();
   const { activeProfile, profilesReady } = useProfileStore();
   const showConfirm = useUIStore((s) => s.showConfirm);
@@ -60,12 +60,21 @@ export default function Game() {
     });
     if (ok) {
       socket?.emit('leave_game', { lobbyId: id });
+      setPlayer(null);
+      setLobby(null);
+      setPublicGameState(null);
+      setHand([]);
+      clearGameResult();
       navigate('/');
     }
   };
 
   const handleBackToLobby = () => {
     socket?.emit('leave_game', { lobbyId: id });
+    setPlayer(null);
+    setLobby(null);
+    setPublicGameState(null);
+    setHand([]);
     clearGameResult();
     navigate(`/lobby/${id}`);
   };
