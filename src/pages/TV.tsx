@@ -6,12 +6,13 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Tv, Trophy, Bot, Users, Activity, Play, PlusCircle, ArrowLeft, WifiOff } from 'lucide-react';
 import { OkeyTile } from '../components/OkeyTile';
 import TVOkeyTable from '../components/TVOkeyTable';
+import PlayerAvatar from '../components/PlayerAvatar';
 import { enterPresentationMode } from '../lib/presentation';
 
 export default function TV() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { socket, lobby, publicGameState } = useGameStore();
+  const { socket, lobby, publicGameState, gameResult } = useGameStore();
   const showToast = useUIStore((s) => s.showToast);
   const [lobbyIdInput, setLobbyIdInput] = useState(id || '');
   const [gameType, setGameType] = useState<'okey' | 'tavla'>('okey');
@@ -247,11 +248,10 @@ export default function TV() {
                 key={p.id}
                 className="bg-[var(--color-surface)] border border-[var(--color-border)] p-4 rounded-2xl text-center font-bold flex flex-col items-center justify-center gap-1 shadow-lg"
               >
+                <PlayerAvatar avatar={p.avatar} color={p.color} size={40} />
                 {p.isBot ? (
-                  <Bot className="w-7 h-7 text-[var(--color-accent)] mb-1" />
-                ) : (
-                  <Users className="w-7 h-7 text-[var(--color-accent)] mb-1" />
-                )}
+                  <Bot className="w-5 h-5 text-[var(--color-accent)] mb-1" />
+                ) : null}
                 <span className="text-sm font-bold text-[var(--color-text)] truncate max-w-full">{p.name}</span>
                 <span className="text-[10px] text-[var(--color-text-muted)] font-mono">Elo: {p.elo || 1200}</span>
               </div>
@@ -381,6 +381,7 @@ export default function TV() {
                       <span className="font-bold text-[var(--color-accent)] w-8 text-center">
                         {medal || `#${idx + 1}`}
                       </span>
+                      <PlayerAvatar avatar={p.avatar} color={p.color} size={32} />
                       <span>{p.name}</span>
                     </div>
                     <span className="font-black text-emerald-400">{p.score} Pkt</span>
@@ -388,6 +389,22 @@ export default function TV() {
                 );
               })}
           </ul>
+          {gameResult?.winningHand && gameResult.winningHand.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-[var(--color-border)]">
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Gewinn-Hand</p>
+              <div className="flex flex-wrap justify-center gap-1">
+                {gameResult.winningHand.map((t: any) => (
+                  <OkeyTile key={t.id} tile={t} size="sm" />
+                ))}
+              </div>
+              {gameResult.winningDiscard && (
+                <div className="mt-3 flex flex-col items-center gap-1">
+                  <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Abgeworfen</p>
+                  <OkeyTile tile={gameResult.winningDiscard} size="sm" />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

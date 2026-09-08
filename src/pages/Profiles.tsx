@@ -5,6 +5,7 @@ import { useProfileStore, type PlayerProfile } from '../store/profileStore';
 import { useUIStore } from '../store/uiStore';
 import { Plus, Pencil, Trash2, LogOut } from 'lucide-react';
 import ProfileEditDialog, { AVATAR_COLORS } from '../components/ProfileEditDialog';
+import PlayerAvatar from '../components/PlayerAvatar';
 
 export default function Profiles() {
   const navigate = useNavigate();
@@ -105,7 +106,7 @@ export default function Profiles() {
                   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 0 10px 24px -10px rgba(0,0,0,0.5)',
                 }}
               >
-                {p.name.slice(0, 1).toUpperCase()}
+                {p.avatar ? <PlayerAvatar avatar={p.avatar} color="transparent" size={72} /> : p.name.slice(0, 1).toUpperCase()}
                 {/* Always visible (not hover-gated) - hover doesn't fire on
                     touch devices, which would otherwise hide these entirely
                     on phones/tablets and make edit/delete undiscoverable. */}
