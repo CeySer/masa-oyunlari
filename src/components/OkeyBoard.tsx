@@ -3,8 +3,9 @@ import { useGameStore } from '../store/gameStore';
 import { useUIStore } from '../store/uiStore';
 import { useSoundStore } from '../store/soundStore';
 import { REACTIONS, findReaction } from '../lib/reactions';
-import { Sparkles, Bot, WifiOff, MessageCircle } from 'lucide-react';
+import { Sparkles, Bot, WifiOff, MessageCircle, Pause, Play } from 'lucide-react';
 import { OkeyTile, EmptyOkeyTileSlot } from './OkeyTile';
+import PlayerAvatar from './PlayerAvatar';
 import ReactionTile from './ReactionTile';
 import { useBoardScale, RACK_TILE_SCALE } from '../lib/useBoardScale';
 
@@ -304,13 +305,14 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
     if (!isMyTurn || !iHaveDrawn || !tile) return;
 
     playSound('discard');
-    socket?.emit('discard_tile', { lobbyId, tileId: tile.id });
+    const rackOrder = rackSlots.filter((t): t is Tile => t !== null).map((t) => t.id);
+    socket?.emit('discard_tile', { lobbyId, tileId: tile.id, rackOrder });
     setSelectedSlotIndex(null);
   };
 
   const handleDeclareWin = () => {
     if (hand.length === 15 && isMyTurn) {
-      socket?.emit('declare_win', { lobbyId });
+      socket?.emit('declare_win', { lobbyId, rackOrder: rackSlots.filter((t): t is Tile => t !== null).map((t) => t.id) });
     } else {
       playSound('error');
       showToast('Du benötigst 15 Steine (nach dem Ziehen), um das Spiel zu beenden!');
@@ -558,6 +560,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
           }}
         >
           <span className="flex items-center gap-1 max-w-full">
+            <PlayerAvatar avatar={p.avatar} color={p.color} size={22} />
             {p.isBot && <Bot className="flex-shrink-0" style={{ color: 'var(--color-accent)', width: fs(11, 9), height: fs(11, 9) }} />}
             {p.away && <WifiOff className="flex-shrink-0 text-red-400" style={{ width: fs(11, 9), height: fs(11, 9) }} />}
             <span
@@ -565,7 +568,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
               style={{
                 fontSize: fs(12, 9),
                 color: isPartner ? '#5eead4' : '#f8efda',
-                opacity: p.away ? 0.6 : 1,
+                opacity: p.away ? 0.45 : isTheirTurn ? 1 : 0.72,
               }}
             >
               {p.name}
@@ -614,11 +617,22 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
         title="Vom Stapel ziehen"
         className="relative flex items-center justify-center transition disabled:opacity-50 active:scale-[0.97]"
       >
-        <OkeyTile
-          tile={{ id: -1, color: 'black', value: publicGameState.pileCount ?? 0 }}
-          scale={RACK_TILE_SCALE}
-          className={isMyTurn && !iHaveDrawn ? 'ring-2 ring-[var(--color-accent)]' : ''}
-        />
+        <span className="relative block" style={{ width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`, height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})` }}>
+          <span className="absolute inset-0 rounded-md" style={{ transform: 'translate(4px,4px)', background: 'linear-gradient(160deg,#8a5a2b,#4a2c0f)', border: '1px solid rgba(0,0,0,0.35)' }} />
+          <span className="absolute inset-0 rounded-md" style={{ transform: 'translate(2px,2px)', background: 'linear-gradient(160deg,#8a5a2b,#4a2c0f)', border: '1px solid rgba(0,0,0,0.35)' }} />
+          <span
+            className="absolute inset-0 flex items-center justify-center rounded-md font-black"
+            style={{
+              background: 'linear-gradient(160deg,#8a5a2b,#4a2c0f)',
+              border: isMyTurn && !iHaveDrawn ? '2px solid var(--color-accent)' : '1px solid rgba(0,0,0,0.4)',
+              color: '#f8efda',
+              fontSize: fs(13, 10),
+              boxShadow: '0 2px 4px rgba(0,0,0,0.35)',
+            }}
+          >
+            {publicGameState.pileCount}
+          </span>
+        </span>
       </button>
     </div>
   );
@@ -682,7 +696,7 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
       style={{ ...(vars as CSSProperties) }}
     >
       <div className="relative flex-1 min-h-0 w-full overflow-hidden">
-        <div className="absolute top-1 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute top-1 left-2 z-20">
           {isMyTurn ? (
             <div
               className="px-3 py-0.5 font-black rounded-full shadow animate-pulse whitespace-nowrap"
@@ -699,13 +713,24 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
             </div>
           )}
         </div>
-        <div className="absolute top-9 left-1/2 -translate-x-1/2 z-10">{renderOpponent(seats.top, 'top')}</div>
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 z-10">{renderOpponent(seats.top, 'top')}</div>
         <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">{renderOpponent(seats.left, 'left')}</div>
         <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{renderOpponent(seats.right, 'right')}</div>
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="pointer-events-auto">{renderCentre()}</div>
         </div>
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center" style={{ gap: sp(4, 2) }}>
+        {lobby.paused && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/35">
+            <button
+              onClick={() => socket?.emit('toggle_pause', { lobbyId })}
+              className="rounded-2xl font-black shadow-xl"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-accent-contrast)', padding: '10px 18px', fontSize: fs(16, 13) }}
+            >
+              Pause · Tippen zum Weiter
+            </button>
+          </div>
+        )}
+        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-10 flex items-center" style={{ gap: sp(8, 5) }}>
           {gostermeEligible && (
             <button
               onClick={handleDeclareGosterme}
@@ -713,112 +738,169 @@ export default function OkeyBoard({ lobbyId }: OkeyBoardProps) {
               style={{ ...btnStyle, background: 'var(--color-accent)', color: 'var(--color-accent-contrast)' }}
             >
               <Sparkles style={iconSize} />
-              <span>Gösterme zeigen</span>
+              <span>Gösterme</span>
             </button>
           )}
-          {me && (
-            <div className="flex items-center" style={{ gap: sp(8, 5) }}>
-              <span
-                className="flex items-center rounded-lg"
-                style={{ background: 'rgba(8,30,18,0.72)', padding: `${sp(4, 2)} ${sp(8, 5)}`, gap: sp(6, 4) }}
-              >
-                <span className="font-bold" style={{ fontSize: fs(12, 9), color: '#f8efda' }}>{me.name}</span>
-                <span className="font-black" style={{ fontSize: fs(12, 9), color: '#e8c56a' }}>{hand.length}</span>
-              </span>
-              <div className="flex flex-col items-center" style={{ gap: sp(3, 2) }}>
-                <span
-                  className="font-bold uppercase tracking-wide"
-                  style={{ fontSize: fs(9, 7), color: isMyTurn && iHaveDrawn ? '#f87171' : 'rgba(248,239,218,0.7)' }}
-                >
-                  Ablage
-                </span>
-                <div
-                  onDragOver={handleDragOver}
-                  onDrop={handleDropDiscardZone}
-                  onClick={() => {
-                    if (selectedTile && isMyTurn && iHaveDrawn) handleDiscard();
-                  }}
-                  title="Stein hier ablegen"
-                  className={`flex items-center justify-center ${isMyTurn && iHaveDrawn ? 'cursor-pointer' : ''}`}
-                  style={{
-                    width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`,
-                    height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})`,
-                    outline: isMyTurn && iHaveDrawn ? '2px dashed #ef4444' : undefined,
-                    outlineOffset: '2px',
-                    borderRadius: 6,
-                    border: myTopDiscard ? undefined : '2px solid rgba(255,255,255,0.35)',
-                    background: isMyTurn && iHaveDrawn && !myTopDiscard ? 'rgba(239,68,68,0.12)' : undefined,
-                  }}
-                >
-                  {myTopDiscard && <OkeyTile tile={myTopDiscard} scale={RACK_TILE_SCALE} />}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
-        <div className="absolute bottom-2 right-2 z-10">{renderActions()}</div>
       </div>
 
       {/* ---------- ISTAKA (the wooden rack) ---------- */}
       {/* Capped at the same max-width as the felt table above, and centered
           the same way, so the rack lines up with the table's edges instead
           of stretching all the way to the screen edge on a wide/TV screen. */}
-      <div className="w-full flex justify-center flex-shrink-0">
-        <div
-          className="w-full rounded-sm shadow-2xl relative"
-          style={{
-            maxWidth: `min(100%, calc(var(--tile-w) * ${RACK_TILE_SCALE} * 15 + var(--tile-gap) * ${RACK_TILE_SCALE} * 14 + 40px))`,
-            background: 'var(--rack-wood)',
-            border: '2px solid var(--rack-wood-edge)',
-            padding: sp(6, 4),
-          }}
-        >
-        <div className="relative flex items-center justify-between" style={{ marginBottom: sp(4, 3) }}>
-          {reactionFor(socket?.id || '') && (
+      <div className="w-full flex items-end justify-center flex-shrink-0" style={{ gap: sp(8, 5) }}>
+      <div className="flex flex-col items-center min-w-0">
+        {me && (
+          <div className="flex items-end mb-1" style={{ gap: sp(8, 5) }}>
             <span
-              className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
-              style={{ animation: `reaction-fade ${REACTION_VISIBLE_MS}ms ease-out forwards` }}
+              className="flex items-center rounded-lg"
+              style={{
+                background: isMyTurn ? 'rgba(8,30,18,0.85)' : 'rgba(8,30,18,0.55)',
+                padding: `${sp(3, 2)} ${sp(8, 5)}`,
+                gap: sp(6, 4),
+                boxShadow: isMyTurn ? '0 0 0 2px var(--color-accent)' : undefined,
+              }}
             >
-              <ReactionTile reaction={reactionFor(socket?.id || '')!} size="sm" thrown />
+              <PlayerAvatar avatar={me.avatar} color={me.color} size={22} />
+              <span className="font-bold" style={{ fontSize: fs(12, 9), color: '#f8efda' }}>{me.name}</span>
+              <span className="font-black" style={{ fontSize: fs(12, 9), color: '#e8c56a' }}>{hand.length}</span>
             </span>
-          )}
-          <div className="flex items-center min-w-0" style={{ gap: sp(6, 4) }}>
+            <div
+              onDragOver={handleDragOver}
+              onDrop={handleDropDiscardZone}
+              onClick={() => {
+                if (selectedTile && isMyTurn && iHaveDrawn) handleDiscard();
+              }}
+              title="Ablage"
+              className={`relative flex items-center justify-center ${isMyTurn && iHaveDrawn ? 'cursor-pointer' : ''}`}
+              style={{
+                width: `calc(var(--tile-w) * ${RACK_TILE_SCALE})`,
+                height: `calc(var(--tile-h) * ${RACK_TILE_SCALE})`,
+                borderRadius: 6,
+                border: `2px solid ${isMyTurn && iHaveDrawn ? '#ef4444' : 'rgba(255,255,255,0.35)'}`,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+                background: 'rgba(0,0,0,0.18)',
+              }}
+            >
+              {myTopDiscard ? (
+                <OkeyTile tile={myTopDiscard} scale={RACK_TILE_SCALE} />
+              ) : (
+                <span className="font-bold uppercase" style={{ fontSize: fs(8, 7), color: 'rgba(248,239,218,0.7)' }}>Ablage</span>
+              )}
+            </div>
             {iHaveDrawn && isMyTurn && (
-              <span
-                className="bg-red-500 text-white font-bold rounded-full animate-pulse leading-none whitespace-nowrap"
-                style={{ fontSize: fs(10, 8), padding: `${sp(3, 2)} ${sp(7, 5)}` }}
-              >
+              <span className="bg-red-500 text-white font-bold rounded-full animate-pulse" style={{ fontSize: fs(10, 8), padding: `${sp(3, 2)} ${sp(7, 5)}` }}>
                 Abwerfen!
               </span>
             )}
-            {/* My own clock - same countdown the others can see under my name */}
-            {isMyTurn && turnDeadline && (
-              <span className="flex items-center" style={{ gap: sp(5, 3), minWidth: sp(70, 48) }}>
-                <span className="flex-1">{renderTurnBar()}</span>
-                <span
-                  className="font-bold tabular-nums leading-none"
-                  style={{ fontSize: fs(11, 9), color: runningOut ? '#f87171' : 'var(--color-text)' }}
-                >
-                  {remainingSeconds}s
-                </span>
+          </div>
+        )}
+        <div
+          className="w-full relative flex items-stretch shadow-2xl"
+          style={{
+            maxWidth: `min(100%, calc(var(--tile-w) * ${RACK_TILE_SCALE} * 15 + var(--tile-gap) * ${RACK_TILE_SCALE} * 14 + 36px))`,
+          }}
+        >
+          <div
+            className="flex-shrink-0"
+            style={{
+              width: 10,
+              background: 'linear-gradient(90deg,#2a1608 0%,#5a3214 40%,#3a2010 100%)',
+              boxShadow: 'inset -1px 0 0 rgba(255,255,255,0.12), 2px 0 3px rgba(0,0,0,0.35)',
+              borderRadius: '3px 0 0 3px',
+            }}
+          />
+          <div
+            className="flex-1 min-w-0 relative"
+            style={{
+              background: 'var(--rack-wood)',
+              padding: `${sp(5, 3)} ${sp(4, 2)}`,
+            }}
+          >
+            {reactionFor(socket?.id || '') && (
+              <span className="absolute -top-8 left-1/2 -translate-x-1/2 z-20 pointer-events-none" style={{ animation: `reaction-fade ${REACTION_VISIBLE_MS}ms ease-out forwards` }}>
+                <ReactionTile reaction={reactionFor(socket?.id || '')!} size="sm" thrown />
               </span>
             )}
+            <div className="flex flex-col" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE} + 6px)` }}>
+              <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
+                {topRowSlots.map((tile, idx) => renderSlotTile(tile, idx))}
+              </div>
+              <div style={{ height: 3, background: 'linear-gradient(180deg,#2a1608,#6b4220 50%,#2a1608)', boxShadow: '0 1px 0 rgba(255,220,160,0.15), 0 2px 3px rgba(0,0,0,0.35)' }} />
+              <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
+                {bottomRowSlots.map((tile, idx) => renderSlotTile(tile, 15 + idx))}
+              </div>
+            </div>
           </div>
-
+          <div
+            className="flex-shrink-0"
+            style={{
+              width: 10,
+              background: 'linear-gradient(90deg,#3a2010 0%,#5a3214 60%,#2a1608 100%)',
+              boxShadow: 'inset 1px 0 0 rgba(255,255,255,0.12), -2px 0 3px rgba(0,0,0,0.35)',
+              borderRadius: '0 3px 3px 0',
+            }}
+          />
         </div>
-
-        {/* Two full rows of 15, numbered even when empty - the tile unit is
-            derived from this rack's own width and height budget, so all 30
-            slots always fit across, no horizontal scrolling, on any screen. */}
-        <div className="flex flex-col items-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
-          <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
-            {topRowSlots.map((tile, idx) => renderSlotTile(tile, idx))}
-          </div>
-          <div className="flex items-center justify-center" style={{ gap: `calc(var(--tile-gap) * ${RACK_TILE_SCALE})` }}>
-            {bottomRowSlots.map((tile, idx) => renderSlotTile(tile, 15 + idx))}
-          </div>
-        </div>
-        </div>
+      </div>
+        {(() => {
+          const solo = (lobby.players || []).filter((p: any) => !p.isBot && !p.away).length === 1;
+          const paused = Boolean(lobby.paused);
+          const sideBtn = {
+            width: 40,
+            height: 40,
+            background: 'var(--table-inset)',
+            border: '1px solid var(--table-edge)',
+          } as CSSProperties;
+          return (
+            <div className="relative z-20 flex flex-col flex-shrink-0" style={{ gap: 8 }}>
+              {solo && (
+                <button
+                  onClick={() => socket?.emit('toggle_pause', { lobbyId })}
+                  title={paused ? 'Weiter' : 'Pause'}
+                  className="rounded-xl flex items-center justify-center active:scale-95"
+                  style={sideBtn}
+                >
+                  {paused ? (
+                    <Play style={{ width: 18, height: 18, color: 'var(--color-accent)' }} />
+                  ) : (
+                    <Pause style={{ width: 18, height: 18, color: '#f8efda' }} />
+                  )}
+                </button>
+              )}
+              <div className="relative">
+                <button
+                  onClick={() => setReactionPickerOpen((o) => !o)}
+                  title="Stein werfen"
+                  className="rounded-xl flex items-center justify-center active:scale-95"
+                  style={sideBtn}
+                >
+                  <MessageCircle style={{ width: 18, height: 18, color: 'var(--color-accent)' }} />
+                </button>
+                {reactionPickerOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setReactionPickerOpen(false)} />
+                    <div
+                      className="absolute bottom-full right-0 mb-2 z-50 flex gap-1.5 p-2 rounded-2xl shadow-2xl"
+                      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border-strong)' }}
+                    >
+                      {REACTIONS.map((r) => (
+                        <button
+                          key={r.id}
+                          onClick={() => handleSendReaction(r.id)}
+                          title={r.title}
+                          className="transition active:scale-90 hover:-translate-y-0.5"
+                        >
+                          <ReactionTile reaction={r} size="sm" />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

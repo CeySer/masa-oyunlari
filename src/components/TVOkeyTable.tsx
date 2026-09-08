@@ -1,5 +1,6 @@
 import { Bot, WifiOff } from 'lucide-react';
 import { OkeyTile } from './OkeyTile';
+import PlayerAvatar from './PlayerAvatar';
 
 type Seat = 'bottom' | 'right' | 'top' | 'left';
 
@@ -58,9 +59,10 @@ function Rack({
       style={{ ...wood, minWidth: vertical ? 56 : 220 }}
     >
       <div className="flex items-center gap-1.5 max-w-full">
+        <PlayerAvatar avatar={player.avatar} color={player.color} size={22} />
         {player.isBot && <Bot className="w-3.5 h-3.5 text-amber-200 flex-shrink-0" />}
         {player.away && <WifiOff className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
-        <span className="text-xs font-bold text-amber-50 truncate">{player.name}</span>
+        <span className={`text-xs font-bold truncate ${isTurn ? 'text-amber-100' : 'text-amber-50/75'}`}>{player.name}</span>
         <span className="text-[10px] text-amber-200/70">{count}</span>
       </div>
       {isTurn && (

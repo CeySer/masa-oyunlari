@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useProfileStore, type PlayerProfile } from '../store/profileStore';
+import { AVATARS } from '../lib/avatars';
+import PlayerAvatar from './PlayerAvatar';
 import { X } from 'lucide-react';
 
 export const AVATAR_COLORS = ['#d4a24e', '#2dd4bf', '#e07a2e', '#8b5cf6', '#ef4444', '#22c55e'];
@@ -20,6 +22,7 @@ export default function ProfileEditDialog({ profile, defaultColor, onClose, onDe
   const { createProfile, updateProfile } = useProfileStore();
   const [name, setName] = useState(profile?.name || '');
   const [color, setColor] = useState(profile?.color || defaultColor || AVATAR_COLORS[0]);
+  const [avatar, setAvatar] = useState(profile?.avatar || AVATARS[0].id);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -31,8 +34,8 @@ export default function ProfileEditDialog({ profile, defaultColor, onClose, onDe
     }
     setBusy(true);
     const res = profile
-      ? await updateProfile(profile.id, { name: trimmed, color })
-      : await createProfile(trimmed, color);
+      ? await updateProfile(profile.id, { name: trimmed, color, avatar })
+      : await createProfile(trimmed, color, avatar);
     setBusy(false);
     if (res.success) onClose();
     else setError(res.error || 'Das hat leider nicht geklappt.');
@@ -67,6 +70,26 @@ export default function ProfileEditDialog({ profile, defaultColor, onClose, onDe
             className="w-full px-4 py-3 rounded-xl bg-[var(--color-surface-2)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] transition"
             placeholder="z.B. Ahmet"
           />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Bild</label>
+          <div className="grid grid-cols-6 gap-2">
+            {AVATARS.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setAvatar(a.id)}
+                title={a.label}
+                className="rounded-full flex items-center justify-center"
+                style={{
+                  boxShadow: avatar === a.id ? `0 0 0 2px var(--color-surface), 0 0 0 4px ${color}` : 'none',
+                }}
+              >
+                <PlayerAvatar avatar={a.id} color={color} size={36} />
+              </button>
+            ))}
+          </div>
         </div>
 
         <div>
